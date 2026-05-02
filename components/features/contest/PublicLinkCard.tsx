@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { Copy, Download, Share2, MessageCircle, Twitter, Linkedin, Mail } from 'lucide-react';
-import QRCode from 'qrcode.react';
+import { QRCodeCanvas as QRCode } from 'qrcode.react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import confetti from "confetti";
 import { CheckCircle, Clock, FileText, Trophy, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,8 +18,9 @@ export default function SubmittedPage() {
 
   useEffect(() => {
     const loadContest = async () => {
-      const data = await contestService.getContestById(contestId);
-      setContest(data);
+        
+      const res = await contestService.getContestById(contestId);
+      setContest(res.data ?? null);
     };
     loadContest();
 
@@ -29,29 +29,38 @@ export default function SubmittedPage() {
       document.exitFullscreen().catch(() => {});
     }
 
-    // Trigger confetti animation on page load
-    const confettiEffect = () => {
-      // Fire confetti from center
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
+    // Trigger confetti animation on page load in the browser only
+    let confettiTimer: number | undefined;
+    let active = true;
 
-      // Second burst for more celebration effect
-      setTimeout(() => {
+    import('canvas-confetti').then(({ default: confetti }) => {
+      if (!active) return;
+
+      const confettiEffect = () => {
         confetti({
-          particleCount: 50,
+          particleCount: 100,
           spread: 70,
           origin: { y: 0.6 },
         });
-      }, 500);
+
+        setTimeout(() => {
+          confetti({
+            particleCount: 50,
+            spread: 70,
+            origin: { y: 0.6 },
+          });
+        }, 500);
+      };
+
+      confettiTimer = window.setTimeout(confettiEffect, 300);
+    });
+
+    return () => {
+      active = false;
+      if (confettiTimer) {
+        window.clearTimeout(confettiTimer);
+      }
     };
-
-    // Delay confetti slightly for better visual impact
-    const confettiTimer = setTimeout(confettiEffect, 300);
-
-    return () => clearTimeout(confettiTimer);
   }, [contestId]);
 
   const submissionTime = new Date().toLocaleString("en-US", {

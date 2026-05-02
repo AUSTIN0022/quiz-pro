@@ -163,7 +163,7 @@ export default function QuizEntryPage() {
                   </Link>
                 </p>
               </form>
-            ) : (
+            ) : step === "otp" ? (
               <form onSubmit={handleOtpSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label>One-Time Password</Label>

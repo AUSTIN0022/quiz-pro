@@ -151,7 +151,7 @@ export function TemplateBuilder({
               className="font-mono text-sm"
             />
             <p className="text-xs text-muted-foreground">
-              Use variables like {{'{'}fullName{'}'}} to personalize messages. Variables will be replaced with actual values.
+              Use variables like <code>{"{{fullName}}"}</code> to personalize messages. Variables will be replaced with actual values.
             </p>
           </div>
 
