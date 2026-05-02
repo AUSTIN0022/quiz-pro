@@ -94,7 +94,7 @@ export function ContestCard({ contest, variant = 'default' }: ContestCardProps) 
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <Users className="h-4 w-4 flex-shrink-0" />
-            <span>{contest.currentParticipants.toLocaleString()} joined</span>
+            <span>{(contest.currentParticipants || 0).toLocaleString()} joined</span>
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <Trophy className="h-4 w-4 flex-shrink-0" />
@@ -106,7 +106,7 @@ export function ContestCard({ contest, variant = 'default' }: ContestCardProps) 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">
-              {spotsLeft.toLocaleString()} spots left
+              {(spotsLeft || 0).toLocaleString()} spots left
             </span>
             {isAlmostFull && (
               <span className="flex items-center gap-1 text-destructive">

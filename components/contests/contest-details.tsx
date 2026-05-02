@@ -123,7 +123,7 @@ export function ContestDetails({ contest }: ContestDetailsProps) {
               <Users className="h-8 w-8 text-primary" />
               <div>
                 <p className="text-xs text-muted-foreground">Registered</p>
-                <p className="font-semibold">{contest.currentParticipants.toLocaleString()}</p>
+                <p className="font-semibold">{(contest.currentParticipants || 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -342,7 +342,7 @@ export function ContestDetails({ contest }: ContestDetailsProps) {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Available Spots</span>
-                      <span className="font-medium">{spotsLeft.toLocaleString()} / {contest.maxParticipants.toLocaleString()}</span>
+                      <span className="font-medium">{(spotsLeft || 0).toLocaleString()} / {(contest.maxParticipants || 0).toLocaleString()}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-secondary">
                       <div 
