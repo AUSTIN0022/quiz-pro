@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import confetti from "confetti";
 import { CheckCircle, Clock, FileText, Trophy, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +28,30 @@ export default function SubmittedPage() {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
+
+    // Trigger confetti animation on page load
+    const confettiEffect = () => {
+      // Fire confetti from center
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+
+      // Second burst for more celebration effect
+      setTimeout(() => {
+        confetti({
+          particleCount: 50,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      }, 500);
+    };
+
+    // Delay confetti slightly for better visual impact
+    const confettiTimer = setTimeout(confettiEffect, 300);
+
+    return () => clearTimeout(confettiTimer);
   }, [contestId]);
 
   const submissionTime = new Date().toLocaleString("en-US", {
