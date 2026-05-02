@@ -138,5 +138,46 @@
   }
   body {
     @apply bg-background text-foreground;
+    color-scheme: light dark;
+    transition: background-color 200ms, color 200ms, border-color 200ms;
+  }
+  
+  .no-transition {
+    transition: none !important;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@layer components {
+  .animate-skeleton {
+    animation: skeleton-shimmer 2s infinite;
+    background: linear-gradient(
+      90deg,
+      var(--muted) 0%,
+      var(--input) 50%,
+      var(--muted) 100%
+    );
+    background-size: 1000px 100%;
+  }
+  
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .safe-area-inset-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+  
+  .safe-area-inset-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
   }
 }

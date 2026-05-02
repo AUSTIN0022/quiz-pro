@@ -216,3 +216,127 @@ export interface ContestFilters {
     end: string;
   };
 }
+
+// ============================================
+// Messaging & Templates
+// ============================================
+
+export type MessageChannel = 'whatsapp' | 'email' | 'both';
+export type MessageStatus = 'draft' | 'scheduled' | 'sent' | 'failed';
+export type SystemEventType = 'registration_confirmed' | 'day_before_reminder' | 'hour_reminder' | 'contest_started' | 'results_published' | 'certificate_ready';
+export type RecipientFilter = 'all' | 'confirmed' | 'paid' | 'custom';
+
+export interface MessageTemplate {
+  id: string;
+  orgId: string;
+  name: string;
+  channel: MessageChannel;
+  body: string;
+  variables: string[];
+  isSystem: boolean;
+  systemEvent?: SystemEventType;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageDraft {
+  id: string;
+  contestId: string;
+  templateId: string;
+  channel: MessageChannel;
+  recipientFilter: RecipientFilter;
+  customFilter?: Record<string, any>;
+  recipientCount: number;
+  scheduledFor?: string;
+  status: MessageStatus;
+  createdAt: string;
+}
+
+export interface SentMessage {
+  id: string;
+  contestId: string;
+  templateId: string;
+  channel: MessageChannel;
+  sentAt: string;
+  totalRecipients: number;
+  deliveredCount: number;
+  failedCount: number;
+  status: 'sent' | 'partial' | 'failed';
+}
+
+// ============================================
+// Organization & Team
+// ============================================
+
+export type TeamRole = 'admin' | 'editor' | 'viewer';
+export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  website?: string;
+  industry?: string;
+  logo?: string;
+  favicon?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  razorpayKeyId?: string;
+  razorpayKeySecret?: string;
+  testMode: boolean;
+  aisensynAPIKey?: string;
+  whatsappNumber?: string;
+  smtpConfig?: {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    from: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamMember {
+  id: string;
+  orgId: string;
+  email: string;
+  name: string;
+  role: TeamRole;
+  status: 'active' | 'inactive';
+  joinedAt: string;
+}
+
+export interface TeamInvitation {
+  id: string;
+  orgId: string;
+  email: string;
+  role: TeamRole;
+  status: InvitationStatus;
+  sentAt: string;
+  expiresAt: string;
+  acceptedAt?: string;
+}
+
+export interface ParticipantProfile {
+  id: string;
+  participantId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  avatar?: string;
+  bio?: string;
+  socialLinks?: {
+    linkedin?: string;
+    twitter?: string;
+    github?: string;
+  };
+  notificationPreferences: {
+    emailReminders: boolean;
+    whatsappReminders: boolean;
+    emailResults: boolean;
+  };
+  createdAt: string;
+  updatedAt: string;
+}

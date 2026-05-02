@@ -1,0 +1,103 @@
+import { ParticipantProfile, ApiResponse } from '@/lib/types';
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+class ParticipantService {
+  private profiles: ParticipantProfile[] = [
+    {
+      id: 'profile-001',
+      participantId: 'QZCP12345ABC',
+      fullName: 'John Doe',
+      email: 'john@example.com',
+      phone: '+91 9876543210',
+      avatar: '/images/avatar.jpg',
+      bio: 'Passionate about competitive exams',
+      socialLinks: {
+        linkedin: 'https://linkedin.com/in/johndoe',
+        twitter: 'https://twitter.com/johndoe',
+      },
+      notificationPreferences: {
+        emailReminders: true,
+        whatsappReminders: true,
+        emailResults: true,
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  ];
+
+  async getProfile(participantId: string): Promise<ApiResponse<ParticipantProfile>> {
+    await delay(300);
+    const profile = this.profiles.find(p => p.participantId === participantId);
+    return {
+      success: !!profile,
+      data: profile,
+      message: profile ? 'Profile found' : 'Profile not found',
+    };
+  }
+
+  async updateProfile(participantId: string, updates: Partial<ParticipantProfile>): Promise<ApiResponse<ParticipantProfile>> {
+    await delay(500);
+    const profile = this.profiles.find(p => p.participantId === participantId);
+    
+    if (!profile) {
+      return { success: false, message: 'Profile not found' };
+    }
+
+    const updated = {
+      ...profile,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const index = this.profiles.indexOf(profile);
+    this.profiles[index] = updated;
+
+    return {
+      success: true,
+      data: updated,
+      message: 'Profile updated successfully',
+    };
+  }
+
+  async updateNotificationPreferences(
+    participantId: string,
+    preferences: ParticipantProfile['notificationPreferences']
+  ): Promise<ApiResponse<ParticipantProfile>> {
+    await delay(400);
+    
+    const profile = this.profiles.find(p => p.participantId === participantId);
+    if (!profile) {
+      return { success: false, message: 'Profile not found' };
+    }
+
+    profile.notificationPreferences = preferences;
+    profile.updatedAt = new Date().toISOString();
+
+    return {
+      success: true,
+      data: profile,
+      message: 'Notification preferences updated',
+    };
+  }
+
+  async uploadAvatar(participantId: string, imageUrl: string): Promise<ApiResponse<ParticipantProfile>> {
+    await delay(800);
+    
+    const profile = this.profiles.find(p => p.participantId === participantId);
+    if (!profile) {
+      return { success: false, message: 'Profile not found' };
+    }
+
+    profile.avatar = imageUrl;
+    profile.updatedAt = new Date().toISOString();
+
+    return {
+      success: true,
+      data: profile,
+      message: 'Avatar updated successfully',
+    };
+  }
+}
+
+export const participantService = new ParticipantService();
