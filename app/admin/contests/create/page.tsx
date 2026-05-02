@@ -165,10 +165,25 @@ export default function CreateContestPage() {
       try {
         await new Promise(resolve => setTimeout(resolve, 1500));
 
+        // Generate unique contest ID
+        const contestId = `contest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
         // Save to localStorage for demo
         localStorage.setItem('newContest', JSON.stringify(form));
+        
+        // Store contest in contests list (in production, this would be an API call)
+        const existingContests = JSON.parse(localStorage.getItem('contests') || '[]');
+        existingContests.push({
+          id: contestId,
+          ...form,
+          status: 'draft',
+          createdAt: new Date().toISOString(),
+          currentParticipants: 0,
+          questions: [],
+        });
+        localStorage.setItem('contests', JSON.stringify(existingContests));
 
-        router.push('/admin/contests/1?success=created');
+        router.push(`/admin/contests/${contestId}?success=created`);
       } catch (err) {
         setErrors({ submit: 'Failed to create contest. Please try again.' });
       } finally {
