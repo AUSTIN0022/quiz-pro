@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useProctoringStore } from "@/lib/stores/proctoring-store";
+import { CameraCheckWidget } from "@/components/features/proctoring/CameraCheckWidget";
 
 interface SystemCheck {
   id: string;
@@ -235,22 +236,14 @@ export default function SystemCheckPage() {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {/* Camera Preview */}
-              <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-                {!cameraStream && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
-                    <Camera className="h-12 w-12 mb-2" />
-                    <p className="text-sm">Camera preview will appear here</p>
-                  </div>
-                )}
-              </div>
+              {/* Camera Preview using CameraCheckWidget */}
+              <CameraCheckWidget
+                onCameraReady={(ready) => {
+                  if (ready) {
+                    updateCheckStatus("camera", "passed");
+                  }
+                }}
+              />
 
               {/* System Checks List */}
               <div className="space-y-3">

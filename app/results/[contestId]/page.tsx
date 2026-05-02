@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   Download,
   Share2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,45 +25,91 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { contestService } from "@/lib/services/contest-service";
-import { quizService } from "@/lib/services/quiz-service";
+import { toast } from "sonner";
+import { useResults } from "@/lib/hooks/useResults";
 import type { Contest, QuizResult, LeaderboardEntry } from "@/lib/types";
 
 export default function ResultsPage() {
   const params = useParams();
   const contestId = params.contestId as string;
+  const [participantId, setParticipantId] = useState<string>("");
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
-  const [contest, setContest] = useState<Contest | null>(null);
-  const [result, setResult] = useState<QuizResult | null>(null);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { results, loading, error, getLeaderboard } = useResults(contestId);
 
-  useEffect(() => {
-    const loadData = async () => {
-      const [contestData, resultData, leaderboardData] = await Promise.all([
-        contestService.getContestById(contestId),
-        quizService.getResult(contestId, "demo-participant"),
-        quizService.getLeaderboard(contestId),
-      ]);
+  const leaderboard = getLeaderboard();
+  const result = results.find(r => r.participantId === participantId);
 
-      setContest(contestData);
-      setResult(resultData);
-      setLeaderboard(leaderboardData);
-      setLoading(false);
-    };
+  const handleOTPVerify = async () => {
+    if (!participantId.trim()) {
+      toast.error("Please enter your participant ID");
+      return;
+    }
 
-    loadData();
-  }, [contestId]);
+    setVerifyLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-  if (loading) {
+      if (results.find(r => r.participantId === participantId)) {
+        setOtpVerified(true);
+        toast.success("Results loaded successfully");
+      } else {
+        toast.error("Participant ID not found. Please verify and try again.");
+      }
+    } catch (err) {
+      toast.error("Failed to verify. Please try again.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  // Show OTP verification screen if not verified
+  if (!otpVerified) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading results...</div>
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted flex flex-col items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>View Your Results</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Enter your participant ID to access your results
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Participant ID</label>
+              <input
+                type="text"
+                placeholder="e.g., QZCP12345ABC"
+                value={participantId}
+                onChange={(e) => setParticipantId(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === "Enter" && handleOTPVerify()}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+              />
+            </div>
+            <Button
+              onClick={handleOTPVerify}
+              className="w-full"
+              disabled={verifyLoading}
+            >
+              {verifyLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              View Results
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  if (!contest || !result) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!result) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-semibold text-foreground">Results not found</h1>
@@ -105,8 +152,8 @@ export default function ResultsPage() {
 
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">{contest.title}</h1>
-            <p className="text-muted-foreground">Your Results</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Quiz Results</h1>
+            <p className="text-muted-foreground">Your performance summary</p>
           </div>
 
           {/* Score Card */}
@@ -301,25 +348,23 @@ export default function ResultsPage() {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">
-                            Correct Answers ({result.correctAnswers} × {contest.marksPerQuestion})
+                            Correct Answers ({result.correctAnswers} × 1)
                           </span>
                           <span className="text-success font-medium">
-                            +{result.correctAnswers * contest.marksPerQuestion}
+                            +{result.correctAnswers}
                           </span>
                         </div>
-                        {contest.negativeMarking && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">
-                              Wrong Answers ({result.wrongAnswers} × {contest.negativeMarkingValue})
-                            </span>
-                            <span className="text-destructive font-medium">
-                              {result.wrongAnswers * contest.negativeMarkingValue}
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Wrong Answers ({result.wrongAnswers} × 0)
+                          </span>
+                          <span className="text-destructive font-medium">
+                            -{result.wrongAnswers * 0.25}
+                          </span>
+                        </div>
                         <div className="flex justify-between pt-2 border-t font-semibold">
                           <span className="text-foreground">Total Score</span>
-                          <span className="text-primary">{result.score}</span>
+                          <span className="text-primary">{result.score}/{result.totalMarks}</span>
                         </div>
                       </div>
                     </div>
@@ -344,8 +389,8 @@ export default function ResultsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {leaderboard.map((entry, index) => {
-                        const isCurrentUser = entry.participantId === "demo-participant";
+                      {leaderboard.slice(0, 20).map((entry, index) => {
+                        const isCurrentUser = entry.participantId === participantId;
                         const entryRankInfo = getRankBadge(entry.rank);
 
                         return (

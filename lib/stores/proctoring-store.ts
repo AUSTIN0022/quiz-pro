@@ -18,27 +18,12 @@ interface ProctoringState {
   faceDetected: boolean;
   faceCount: number;
   lightingOk: boolean;
-  
-  // Violation tracking
-  tabSwitchCount: number;
-  fullscreenExitCount: number;
-  maxTabSwitches: number;
-  warnings: Warning[];
-  
-  // Warning state
-  showWarning: boolean;
-  warningMessage: string;
-  currentWarningType: WarningType | null;
-  
-  // Disqualification
-  isDisqualified: boolean;
-  isFlagged: boolean;
-  
-  // Stream
-  videoStream: MediaStream | null;
-  
-  // Actions
+  setFaceDetected: (value: boolean) => void;
+  setFaceCount: (value: number) => void;
+  setLightingOk: (value: boolean) => void;
   setFullscreen: (value: boolean) => void;
+  setCameraStream: (stream: MediaStream | null) => void;
+  setFullscreenEnabled: (value: boolean) => void;
   setCameraEnabled: (value: boolean) => void;
   setCameraPermissionGranted: (value: boolean) => void;
   setVideoStream: (stream: MediaStream | null) => void;
@@ -68,9 +53,17 @@ export const useProctoringStore = create<ProctoringState>((set, get) => ({
   warningMessage: '',
   isDisqualified: false,
   videoStream: null,
+  faceDetected: false,
+  faceCount: 0,
+  lightingOk: true,
   
   // Actions
+  setFaceDetected: (value) => set({ faceDetected: value }),
+  setFaceCount: (value) => set({ faceCount: value }),
+  setLightingOk: (value) => set({ lightingOk: value }),
   setFullscreen: (value) => set({ isFullscreen: value }),
+  setCameraStream: (stream) => set({ videoStream: stream }),
+  setFullscreenEnabled: (value) => set({ isFullscreen: value }),
   setCameraEnabled: (value) => set({ isCameraEnabled: value }),
   setCameraPermissionGranted: (value) => set({ isCameraPermissionGranted: value }),
   setVideoStream: (stream) => set({ videoStream: stream }),
