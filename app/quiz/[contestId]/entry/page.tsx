@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { registrationService } from "@/lib/services/registration-service";
+import { CameraCheckWidget } from "@/components/features/proctoring/CameraCheckWidget";
 
 export default function QuizEntryPage() {
   const params = useParams();
@@ -21,7 +22,9 @@ export default function QuizEntryPage() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<"id" | "otp">("id");
+  const [step, setStep] = useState<"id" | "otp" | "camera">("id");
+  const [cameraReady, setCameraReady] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
 
   const handleIdSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,14 +93,9 @@ export default function QuizEntryPage() {
     // Simulate OTP verification (any 6-digit code works for demo)
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // Store participant info in session storage
-    sessionStorage.setItem("quizParticipant", JSON.stringify({
-      participantId,
-      contestId,
-      verified: true,
-    }));
-
-    router.push(`/quiz/${contestId}/system-check`);
+    // Move to camera check step
+    setStep("camera");
+    setOtp(["", "", "", "", "", ""]);
   };
 
   return (
@@ -117,7 +115,9 @@ export default function QuizEntryPage() {
             <CardDescription>
               {step === "id"
                 ? "Enter your Participant ID to continue"
-                : "Enter the OTP sent to your registered email"}
+                : step === "otp"
+                ? "Enter the OTP sent to your registered email"
+                : "Verify your camera for proctoring"}
             </CardDescription>
           </CardHeader>
 
@@ -220,7 +220,47 @@ export default function QuizEntryPage() {
                   </button>
                 </div>
               </form>
-            )}
+            ) : step === "camera" ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (cameraReady && faceDetected) {
+                    // Store participant info in session storage
+                    sessionStorage.setItem("quizParticipant", JSON.stringify({
+                      participantId,
+                      contestId,
+                      verified: true,
+                    }));
+                    router.push(`/quiz/${contestId}/system-check`);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <CameraCheckWidget
+                  onCameraReady={setCameraReady}
+                  onFaceDetected={setFaceDetected}
+                />
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={!cameraReady || !faceDetected}
+                >
+                  Proceed to System Check
+                </Button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("otp");
+                    setOtp(["", "", "", "", "", ""]);
+                  }}
+                  className="w-full text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Back to OTP
+                </button>
+              </form>
+            ) : null}
           </CardContent>
         </Card>
       </motion.div>

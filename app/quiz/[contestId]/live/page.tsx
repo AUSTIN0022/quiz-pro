@@ -31,12 +31,24 @@ import { useProctoringStore } from "@/lib/stores/proctoring-store";
 import { quizService } from "@/lib/services/quiz-service";
 import { QuestionDisplay } from "@/components/quiz/question-display";
 import { QuestionNavigation } from "@/components/quiz/question-navigation";
+import { useQuizSocket } from "@/lib/hooks/useQuizSocket";
+import { ProctoringManager } from "@/components/features/proctoring/ProctoringManager";
+import { ProctorWarningModal, type WarningType } from "@/components/features/proctoring/ProctorWarningModal";
+import { ProctoringStatusChip } from "@/components/features/proctoring/ProctoringStatusChip";
+import { CameraFeed } from "@/components/features/proctoring/CameraFeed";
+import { useState } from "react";
 
 export default function LiveQuizPage() {
   const params = useParams();
   const router = useRouter();
   const contestId = params.contestId as string;
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [warningModal, setWarningModal] = useState<{
+    open: boolean;
+    type: WarningType;
+    count?: number;
+  }>({ open: false, type: 'TAB_SWITCH' });
 
   const {
     session,
@@ -49,15 +61,82 @@ export default function LiveQuizPage() {
     tick,
   } = useQuizStore();
 
-  const { cameraStream, isFullscreen, setFullscreen, recordViolation } = useProctoringStore();
+  const { 
+    isCameraEnabled, 
+    isFullscreen, 
+    setFullscreen, 
+    recordTabSwitch, 
+    recordFullscreenExit,
+    tabSwitchCount,
+    maxTabSwitches,
+    videoStream,
+  } = useProctoringStore();
+
+  // Initialize WebSocket for quiz
+  const sessionToken = typeof window !== 'undefined' 
+    ? sessionStorage.getItem('quizParticipant')
+      ? JSON.parse(sessionStorage.getItem('quizParticipant') || '{}').sessionToken
+      : ''
+    : '';
+  
+  const participantId = typeof window !== 'undefined' 
+    ? sessionStorage.getItem('quizParticipant')
+      ? JSON.parse(sessionStorage.getItem('quizParticipant') || '{}').participantId
+      : ''
+    : '';
+
+  const deviceId = typeof window !== 'undefined' 
+    ? localStorage.getItem('deviceId') || crypto.randomUUID()
+    : '';
+
+  const { wsStatus } = useQuizSocket(
+    contestId,
+    participantId,
+    sessionToken,
+    deviceId,
+    {
+      onSessionNew: (data) => {
+        // Session started
+        console.log('[v0] New session', data);
+      },
+      onSessionRestored: (data) => {
+        // Resume from previous session
+        console.log('[v0] Session restored', data);
+      },
+      onProctorWarning: (data) => {
+        console.log('[v0] Proctor warning:', data);
+        setWarningModal({
+          open: true,
+          type: data.type,
+          count: data.count,
+        });
+      },
+    }
+  );
 
   // Initialize quiz on mount
   useEffect(() => {
     const initQuiz = async () => {
-      await startQuiz(contestId, "demo-participant");
+      await startQuiz(contestId, participantId || "demo-participant");
     };
     initQuiz();
-  }, [contestId, startQuiz]);
+  }, [contestId, startQuiz, participantId]);
+
+  // Enter fullscreen on mount
+  useEffect(() => {
+    const enterFullscreen = async () => {
+      try {
+        if (document.fullscreenEnabled && !document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+          setFullscreen(true);
+        }
+      } catch (error) {
+        console.error('[v0] Failed to enter fullscreen:', error);
+      }
+    };
+
+    enterFullscreen();
+  }, [setFullscreen]);
 
   // Setup camera preview
   useEffect(() => {
@@ -114,19 +193,36 @@ export default function LiveQuizPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRemaining, session?.status]);
 
-  // Detect tab switch
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        recordViolation("tab_switch");
-      }
-    };
+  // Handle tab switch and fullscreen exit
+  const handleTabSwitch = () => {
+    const isDisqualified = recordTabSwitch();
+    if (isDisqualified) {
+      setWarningModal({
+        open: true,
+        type: 'TAB_SWITCH',
+        count: maxTabSwitches,
+      });
+    }
+  };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [recordViolation]);
+  const handleFullscreenExit = () => {
+    recordFullscreenExit();
+    setWarningModal({
+      open: true,
+      type: 'FULLSCREEN_EXIT',
+    });
+  };
+
+  const handleReturnFullscreen = async () => {
+    try {
+      if (document.fullscreenEnabled && !document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setFullscreen(true);
+      }
+    } catch (error) {
+      console.error('[v0] Failed to return to fullscreen:', error);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!session) return;
@@ -166,6 +262,22 @@ export default function LiveQuizPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Proctoring Manager - monitors violations silently */}
+      <ProctoringManager
+        onTabSwitch={handleTabSwitch}
+        onFullscreenExit={handleFullscreenExit}
+      />
+
+      {/* Proctor Warning Modal */}
+      <ProctorWarningModal
+        open={warningModal.open}
+        type={warningModal.type}
+        warningCount={warningModal.count}
+        maxWarnings={maxTabSwitches}
+        onDismiss={() => setWarningModal({ ...warningModal, open: false })}
+        onReturnFullscreen={handleReturnFullscreen}
+      />
+
       {/* Top Bar */}
       <header className="sticky top-0 z-50 bg-card border-b px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -193,23 +305,18 @@ export default function LiveQuizPage() {
             {formatTime(timeRemaining)}
           </div>
 
-          {/* Right: Camera Preview & Submit */}
+          {/* Right: Camera Preview, Status & Submit */}
           <div className="flex items-center gap-3">
             {/* Mini Camera Preview */}
-            <div className="hidden md:block relative w-16 h-12 rounded overflow-hidden bg-muted">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
+            {videoStream && (
+              <CameraFeed
+                stream={videoStream}
+                variant="floating"
               />
-              {!cameraStream && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Camera className="h-4 w-4 text-muted-foreground" />
-                </div>
-              )}
-            </div>
+            )}
+
+            {/* Proctoring Status */}
+            <ProctoringStatusChip />
 
             {/* Submit Button */}
             <AlertDialog>
