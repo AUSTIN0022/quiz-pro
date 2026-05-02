@@ -97,17 +97,17 @@ export default function HomePage() {
                 From academic olympiads to coding challenges, prove your expertise and win exciting prizes.
               </p>
               <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
-                <Link href="/contests">
+                <Link href="/auth/login">
                   <Button size="lg" className="w-full sm:w-auto gap-2">
                     <Trophy className="h-5 w-5" />
-                    Explore Contests
+                    Sign In
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Link href="/quiz/enter">
+                <Link href="/auth/register">
                   <Button size="lg" variant="outline" className="w-full sm:w-auto gap-2">
                     <Lock className="h-5 w-5" />
-                    Enter with Participant ID
+                    Create Account
                   </Button>
                 </Link>
               </div>
@@ -239,11 +239,13 @@ export default function HomePage() {
                   ))}
                 </ul>
                 <div className="mt-8">
-                  <Button size="lg" className="gap-2">
-                    <Globe className="h-5 w-5" />
-                    Start Organizing
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
+                  <Link href="/auth/login">
+                    <Button size="lg" className="gap-2">
+                      <Globe className="h-5 w-5" />
+                      Start Organizing
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               </div>
               <div className="relative">
@@ -274,19 +276,19 @@ export default function HomePage() {
                 Join thousands of participants and prove your expertise in exciting contests.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-center">
-                <Link href="/contests">
+                <Link href="/auth/login">
                   <Button size="lg" variant="secondary" className="w-full sm:w-auto gap-2">
                     <Trophy className="h-5 w-5" />
-                    Browse Contests
+                    Sign In Now
                   </Button>
                 </Link>
-                <Link href="/quiz/enter">
+                <Link href="/auth/register">
                   <Button 
                     size="lg" 
                     variant="outline" 
                     className="w-full sm:w-auto gap-2 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
                   >
-                    Enter Quiz
+                    Create Account
                   </Button>
                 </Link>
               </div>
