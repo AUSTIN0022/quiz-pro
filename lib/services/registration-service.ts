@@ -164,6 +164,92 @@ class RegistrationService {
       message: `OTP sent to ${email}`
     };
   }
+
+  // Admin methods
+  async getRegistrations(contestId: string, filters?: {
+    status?: string;
+    payment?: string;
+    search?: string;
+    dateRange?: { from: string; to: string };
+  }): Promise<ApiResponse<Registration[]>> {
+    await delay(300);
+    
+    let filtered = this.registrations.filter(r => r.contestId === contestId);
+    
+    if (filters) {
+      if (filters.status) {
+        filtered = filtered.filter(r => r.status === filters.status);
+      }
+      if (filters.payment) {
+        filtered = filtered.filter(r => r.paymentStatus === filters.payment);
+      }
+      if (filters.search) {
+        const search = filters.search.toLowerCase();
+        filtered = filtered.filter(r => 
+          r.participantDetails.fullName.toLowerCase().includes(search) ||
+          r.participantDetails.email.toLowerCase().includes(search) ||
+          r.participantDetails.phone.includes(search) ||
+          r.participantId.toLowerCase().includes(search)
+        );
+      }
+      if (filters.dateRange) {
+        const from = new Date(filters.dateRange.from);
+        const to = new Date(filters.dateRange.to);
+        filtered = filtered.filter(r => {
+          const regDate = new Date(r.registeredAt);
+          return regDate >= from && regDate <= to;
+        });
+      }
+    }
+    
+    return {
+      success: true,
+      data: filtered
+    };
+  }
+
+  async exportRegistrationsCSV(registrations: Registration[]): Promise<string> {
+    const headers = ['Participant ID', 'Full Name', 'Email', 'Phone', 'Institution', 'City', 'State', 'Country', 'Status', 'Payment Status', 'Registered At'];
+    const rows = registrations.map(r => [
+      r.participantId,
+      r.participantDetails.fullName,
+      r.participantDetails.email,
+      r.participantDetails.phone,
+      r.participantDetails.institution || '',
+      r.participantDetails.city || '',
+      r.participantDetails.state || '',
+      r.participantDetails.country,
+      r.status,
+      r.paymentStatus,
+      new Date(r.registeredAt).toLocaleDateString()
+    ]);
+    
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    return csv;
+  }
+
+  async bulkRevokeRegistrations(registrationIds: string[]): Promise<ApiResponse<{ revoked: number }>> {
+    await delay(500);
+    
+    let count = 0;
+    registrationIds.forEach(id => {
+      const reg = this.registrations.find(r => r.id === id);
+      if (reg) {
+        reg.status = 'cancelled';
+        count++;
+      }
+    });
+    
+    return {
+      success: true,
+      data: { revoked: count },
+      message: `${count} registrations revoked`
+    };
+  }
 }
 
 export const registrationService = new RegistrationService();
