@@ -49,14 +49,14 @@ export function Header() {
 
         {/* Desktop CTA */}
         <div className="hidden md:flex md:items-center md:gap-3">
-          <Link href="/quiz/enter">
+          <Link href="/auth/login">
             <Button variant="outline" size="sm">
-              Enter Quiz
+              Sign In
             </Button>
           </Link>
-          <Link href="/contests">
+          <Link href="/auth/register">
             <Button size="sm">
-              Browse Contests
+              Create Account
             </Button>
           </Link>
         </div>
@@ -92,14 +92,14 @@ export function Header() {
               </Link>
             ))}
             <div className="mt-4 flex flex-col gap-2 pt-4 border-t border-border/50">
-              <Link href="/quiz/enter" onClick={() => setMobileMenuOpen(false)}>
+              <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
                 <Button variant="outline" className="w-full">
-                  Enter Quiz
+                  Sign In
                 </Button>
               </Link>
-              <Link href="/contests" onClick={() => setMobileMenuOpen(false)}>
+              <Link href="/auth/register" onClick={() => setMobileMenuOpen(false)}>
                 <Button className="w-full">
-                  Browse Contests
+                  Create Account
                 </Button>
               </Link>
             </div>

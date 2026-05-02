@@ -231,7 +231,7 @@ export default function AdminPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <DollarSign className="h-4 w-4" />
-                          ₹{contest.revenue.toLocaleString()}
+                          ₹{(contest.revenue || 0).toLocaleString()}
                         </span>
                       </div>
                     </div>
