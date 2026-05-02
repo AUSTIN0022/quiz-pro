@@ -216,3 +216,50 @@ export interface ContestFilters {
     end: string;
   };
 }
+
+// ============================================
+// Messaging & Templates
+// ============================================
+
+export type MessageChannel = 'whatsapp' | 'email' | 'both';
+export type MessageStatus = 'draft' | 'scheduled' | 'sent' | 'failed';
+export type SystemEventType = 'registration_confirmed' | 'day_before_reminder' | 'hour_reminder' | 'contest_started' | 'results_published' | 'certificate_ready';
+export type RecipientFilter = 'all' | 'confirmed' | 'paid' | 'custom';
+
+export interface MessageTemplate {
+  id: string;
+  orgId: string;
+  name: string;
+  channel: MessageChannel;
+  body: string;
+  variables: string[];
+  isSystem: boolean;
+  systemEvent?: SystemEventType;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageDraft {
+  id: string;
+  contestId: string;
+  templateId: string;
+  channel: MessageChannel;
+  recipientFilter: RecipientFilter;
+  customFilter?: Record<string, any>;
+  recipientCount: number;
+  scheduledFor?: string;
+  status: MessageStatus;
+  createdAt: string;
+}
+
+export interface SentMessage {
+  id: string;
+  contestId: string;
+  templateId: string;
+  channel: MessageChannel;
+  sentAt: string;
+  totalRecipients: number;
+  deliveredCount: number;
+  failedCount: number;
+  status: 'sent' | 'partial' | 'failed';
+}
