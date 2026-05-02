@@ -115,7 +115,7 @@ export default function QuestionsPage() {
             <span>Back</span>
           </Link>
           <h1 className="text-2xl font-bold">Question Bank</h1>
-          <Link href="/admin/questions/new">
+          <Link href="/admin/questions/create">
             <Button size="sm" className="gap-2">
               <Plus className="h-4 w-4" />
               New Question
@@ -171,7 +171,7 @@ export default function QuestionsPage() {
               <div className="text-center py-12">
                 <HelpCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <p className="text-muted-foreground mb-4">No questions found</p>
-                <Link href="/admin/questions/new">
+                <Link href="/admin/questions/create">
                   <Button>Create Your First Question</Button>
                 </Link>
               </div>
