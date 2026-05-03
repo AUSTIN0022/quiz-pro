@@ -1,5 +1,6 @@
 import { MockDB } from './db';
-import type { Registration, Contact, Payment, QuizAttempt } from '@/lib/types';
+import type { Registration, QuizAttempt } from '@/lib/types';
+import type { Contact, Payment } from './db';
 
 // ============================================
 // RELATION HELPERS - Join functions for MockDB
@@ -96,7 +97,7 @@ export function getContestWithStats(contestId: string): ContestWithStats {
     confirmedCount: confirmed,
     paidCount: paid,
     submittedCount: submitted,
-    totalRevenue: revenue,
+    revenue: revenue,
   };
 }
 
@@ -137,7 +138,7 @@ export function getSubmissionsForContest(contestId: string) {
   return MockDB.submissions
     .filter(s => s.contestId === contestId)
     .map(submission => {
-      const attempt = MockDB.attempts.find(a => a.id === `attempt-${submission.registrationId}`);
+      const attempt = (MockDB.attempts as any[]).find(a => a.id === `attempt-${submission.registrationId}`);
       const registration = MockDB.registrations.find(r => r.id === attempt?.registrationId);
       const contact = registration ? MockDB.contacts.find(c => c.id === `contact-${registration.id.split('-')[1]}`) : undefined;
 
@@ -153,7 +154,7 @@ export function getSubmissionsForContest(contestId: string) {
  * Get all certificates for a contest with contact details
  */
 export function getCertificatesForContest(contestId: string) {
-  return MockDB.certificates
+  return (MockDB.certificates as any[])
     .filter(c => c.contestId === contestId)
     .map(cert => {
       const contact = MockDB.contacts.find(c => c.id === cert.contactId);
@@ -188,7 +189,7 @@ export function getLiveParticipantsForContest(contestId: string): LiveParticipan
       name: contact.fullName,
       avatarInitials: contact.fullName
         .split(' ')
-        .map(n => n[0])
+        .map((n: string) => n[0])
         .join('')
         .toUpperCase()
         .slice(0, 2),

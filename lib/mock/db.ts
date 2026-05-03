@@ -2,14 +2,40 @@ import type {
   Organization,
   Contest,
   Question,
-  Contact,
   Registration,
-  Payment,
   QuizAttempt,
   MessageTemplate,
   SentMessage,
   TeamMember,
+  DifficultyLevel,
 } from '@/lib/types';
+
+// Standalone types for Mock DB
+export interface Contact {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  institution?: string;
+  city?: string;
+  state?: string;
+  country: string;
+  createdAt: string;
+}
+
+export interface Payment {
+  id: string;
+  registrationId: string;
+  contactId: string;
+  contestId: string;
+  amount: number;
+  currency: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  status: 'captured' | 'failed' | 'refunded';
+  method: string;
+  createdAt: string;
+}
 
 // ============================================
 // MOCK DATABASE - Single source of truth
@@ -61,7 +87,7 @@ function generateQuestionsForContest(contestId: string, totalQuestions: number):
   };
 
   const topicList = topics[contestId] || ['General'];
-  const difficulties = ['easy', 'medium', 'hard'];
+  const difficulties: DifficultyLevel[] = ['easy', 'medium', 'hard'];
   const questionTexts: Record<string, string[]> = {
     'contest-001': [
       'Solve for x: 2x² + 5x + 3 = 0',
@@ -738,12 +764,12 @@ export const MockDB = {
 
   // Placeholder for certificates
   get certificates() {
-    return [];
+    return [] as any[];
   },
 
   // Placeholder for results
   get results() {
-    return [];
+    return [] as any[];
   },
 
   // Message templates

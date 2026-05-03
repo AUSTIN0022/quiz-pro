@@ -213,15 +213,6 @@ class AuthService {
 
     return { success: true, data: registration };
   }
-      return r.participantDetails.email.toLowerCase() === contact.toLowerCase();
-    });
-
-    if (!registration) {
-      return { success: false, error: 'NOT_REGISTERED' };
-    }
-
-    return { success: true, data: registration };
-  }
 
   // Get current session
   getSession(): SessionData | null {

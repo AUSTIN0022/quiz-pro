@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  Camera,
   CameraOff,
   CheckCircle2,
   AlertCircle,
@@ -16,6 +15,9 @@ import { useProctoringStore } from '@/lib/stores/proctoring-store';
 import type { FaceDetectionEngine } from '@/lib/proctoring/FaceDetectionEngine';
 import type { DetectionResult } from '@/lib/proctoring/types';
 
+// ─────────────────────────────────────────────────────────────
+// Props — no stream/cameraError props needed; reads from store
+// ─────────────────────────────────────────────────────────────
 interface CameraCheckWidgetProps {
   onProceed: () => void;
   onRetryCamera: () => void;
@@ -29,44 +31,46 @@ export function CameraCheckWidget({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<FaceDetectionEngine | null>(null);
   const [engineReady, setEngineReady] = useState(false);
-  const [latestResult, setLatestResult] = useState<DetectionResult | null>(null);
   const detectionIntervalRef = useRef<number | null>(null);
 
-  // Get camera state from store
+  // ── Read camera state from centralised proctoring store ──
   const videoStream = useProctoringStore((s) => s.videoStream);
   const cameraStatus = useProctoringStore((s) => s.cameraStatus);
 
-  const { faceDetected, faceCount, lightingOk, isInitialized } = useFaceDetection({
+  const { faceCount, lightingOk } = useFaceDetection({
     videoRef,
     active: cameraStatus === 'active' && engineReady,
   });
 
-  // Attach stream to video element
+  // ── Attach stream to <video> whenever it becomes available ──
   useEffect(() => {
     if (videoRef.current && videoStream) {
       videoRef.current.srcObject = videoStream;
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => {
+        // Autoplay policy — safe to ignore; will play on user gesture
+      });
     }
   }, [videoStream]);
 
-  // Lazy-load face detection engine
+  // ── Lazy-load face detection model after camera is active ──
   useEffect(() => {
     if (cameraStatus !== 'active') return;
-
     import('@/lib/proctoring').then(({ faceEngine }) => {
       engineRef.current = faceEngine;
-      faceEngine.loadModel().then(() => setEngineReady(true)).catch(() => {});
+      faceEngine
+        .loadModel()
+        .then(() => setEngineReady(true))
+        .catch(() => {
+          // Model load failure is non-fatal — proctoring degrades gracefully
+        });
     });
   }, [cameraStatus]);
 
-  // Detection loop for bounding box drawing
+  // ── Bounding-box detection loop (draw overlay on canvas) ──
   const runBBoxDetection = useCallback(async () => {
     if (!videoRef.current || !engineRef.current?.isReady()) return;
-
     try {
-      const result = await engineRef.current.detect(videoRef.current);
-      setLatestResult(result);
-
+      const result: DetectionResult = await engineRef.current.detect(videoRef.current);
       if (canvasRef.current && videoRef.current) {
         engineRef.current.drawBoundingBoxes(
           canvasRef.current,
@@ -76,9 +80,8 @@ export function CameraCheckWidget({
         );
       }
     } catch {
-      // Detection failed — will retry on next interval
+      // Detection failed — retry on next tick
     }
-
     detectionIntervalRef.current = window.setTimeout(runBBoxDetection, 2000);
   }, []);
 
@@ -93,7 +96,7 @@ export function CameraCheckWidget({
 
   const allChecksPass = cameraStatus === 'active' && faceCount === 1 && lightingOk;
 
-  // Camera permission denied state
+  // ── Denied / Error state ───────────────────────────────────
   if (cameraStatus === 'denied' || cameraStatus === 'error') {
     return (
       <div className="space-y-4">
@@ -103,7 +106,9 @@ export function CameraCheckWidget({
           </div>
           <h3 className="font-semibold text-foreground mb-1">Camera access required</h3>
           <p className="text-sm text-muted-foreground text-center mb-4 max-w-xs">
-            {cameraError || 'Camera access was denied. This contest requires camera for proctoring.'}
+            {cameraStatus === 'denied'
+              ? 'Camera permission was denied. Please allow camera access in your browser settings.'
+              : 'Camera is unavailable. It may be in use by another application.'}
           </p>
 
           <ol className="text-xs text-muted-foreground space-y-1.5 mb-5 text-left">
@@ -121,10 +126,15 @@ export function CameraCheckWidget({
     );
   }
 
+  // ── Normal state: requesting / active ─────────────────────
   return (
     <div className="space-y-4">
       {/* Camera Preview */}
-      <div className="relative mx-auto overflow-hidden rounded-xl bg-black" style={{ width: 280, height: 210 }}>
+      <div
+        className="relative mx-auto overflow-hidden rounded-xl bg-black"
+        style={{ width: 280, height: 210 }}
+      >
+        {/* playsInline is required for iOS Safari inline playback */}
         <video
           ref={videoRef}
           className="w-full h-full object-cover"
@@ -140,12 +150,15 @@ export function CameraCheckWidget({
         />
 
         {/* Loading overlay */}
-        {(cameraStatus === 'requesting' || (cameraStatus === 'active' && !engineReady)) && (
+        {(cameraStatus === 'requesting' ||
+          (cameraStatus === 'active' && !engineReady)) && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-6 h-6 text-white animate-spin mx-auto mb-2" />
               <p className="text-xs text-white/80">
-                {cameraStatus === 'requesting' ? 'Starting camera...' : 'Loading face detection...'}
+                {cameraStatus === 'requesting'
+                  ? 'Starting camera…'
+                  : 'Loading face detection…'}
               </p>
             </div>
           </div>
@@ -154,7 +167,6 @@ export function CameraCheckWidget({
 
       {/* Status Checklist */}
       <div className="space-y-2">
-        {/* Camera Status */}
         <StatusRow
           ok={cameraStatus === 'active'}
           warning={false}
@@ -162,27 +174,27 @@ export function CameraCheckWidget({
           warningText=""
           errorText="Camera not active"
         />
-
-        {/* Face Detection */}
         <StatusRow
           ok={faceCount === 1}
           warning={faceCount === 0 && cameraStatus === 'active'}
           okText="Face detected"
-          warningText="No face detected — center your face"
-          errorText={faceCount >= 2 ? 'Multiple faces detected — only you should be visible' : 'No face detected'}
+          warningText="No face detected — centre your face in the frame"
+          errorText={
+            faceCount >= 2
+              ? 'Multiple faces detected — only you should be visible'
+              : 'No face detected'
+          }
         />
-
-        {/* Lighting */}
         <StatusRow
           ok={lightingOk}
           warning={!lightingOk && cameraStatus === 'active'}
           okText="Lighting OK"
-          warningText="Too dark — improve lighting or move to brighter area"
+          warningText="Too dark — move to a brighter area"
           errorText="Lighting too low"
         />
       </div>
 
-      {/* Proceed Button */}
+      {/* Proceed */}
       <Button
         onClick={onProceed}
         disabled={!allChecksPass}
@@ -195,8 +207,9 @@ export function CameraCheckWidget({
   );
 }
 
-// ─── Status Row Component ────────────────────────────────
-
+// ─────────────────────────────────────────────────────────────
+// Status Row
+// ─────────────────────────────────────────────────────────────
 function StatusRow({
   ok,
   warning,
@@ -220,12 +233,16 @@ function StatusRow({
       ) : warning ? (
         <>
           <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
-          <span className="text-sm font-medium text-amber-600 dark:text-amber-400">{warningText}</span>
+          <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
+            {warningText}
+          </span>
         </>
       ) : (
         <>
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-          <span className="text-sm font-medium text-red-600 dark:text-red-400">{errorText}</span>
+          <span className="text-sm font-medium text-red-600 dark:text-red-400">
+            {errorText}
+          </span>
         </>
       )}
     </div>
