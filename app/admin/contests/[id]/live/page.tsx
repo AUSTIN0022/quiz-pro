@@ -94,6 +94,11 @@ export default function LiveMonitorTabPage() {
     const [selectedParticipant, setSelectedParticipant] = useState<LiveParticipant | null>(null);
     const [anomalyEvents, setAnomalyEvents] = useState<AnomalyEvent[]>([]);
 
+    // Debug logging for view mode changes
+    useEffect(() => {
+        console.log("[v0] View mode changed to:", viewMode);
+    }, [viewMode]);
+
     const stats = useMemo(() => getParticipantStats(), [getParticipantStats]);
 
     const filteredParticipants = useMemo(() => {
@@ -227,30 +232,32 @@ export default function LiveMonitorTabPage() {
                     </div>
 
                     {/* Grid/Table/Outliers View */}
-                    {viewMode === 'grid' ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {filteredParticipants.map(p => (
-                                <LiveParticipantCard
-                                    key={p.participantId}
-                                    participant={p}
-                                    onClick={() => setSelectedParticipant(p)}
+                    <div key={viewMode}>
+                        {viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {filteredParticipants.map(p => (
+                                    <LiveParticipantCard
+                                        key={p.participantId}
+                                        participant={p}
+                                        onClick={() => setSelectedParticipant(p)}
+                                    />
+                                ))}
+                            </div>
+                        ) : viewMode === 'table' ? (
+                            <LiveTable participants={filteredParticipants} onDetails={(p) => setSelectedParticipant(p)} onForceSubmit={(id) => forceSubmitParticipant(id)} />
+                        ) : (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <RankedOutliersSection 
+                                    participants={participants}
+                                    totalParticipants={stats.totalJoined}
                                 />
-                            ))}
-                        </div>
-                    ) : viewMode === 'table' ? (
-                        <LiveTable participants={filteredParticipants} onDetails={(p) => setSelectedParticipant(p)} onForceSubmit={(id) => forceSubmitParticipant(id)} />
-                    ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <RankedOutliersSection 
-                                participants={participants}
-                                totalParticipants={stats.totalJoined}
-                            />
-                            <AnomalyFeedSection 
-                                participants={participants}
-                                events={anomalyEvents}
-                            />
-                        </div>
-                    )}
+                                <AnomalyFeedSection 
+                                    participants={participants}
+                                    events={anomalyEvents}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             ) : (
                 <LiveLeaderboard participants={participants} />
