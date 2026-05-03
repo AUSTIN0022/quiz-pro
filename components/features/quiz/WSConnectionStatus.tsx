@@ -1,6 +1,6 @@
 'use client';
 
-import { type WSStatus } from '@/lib/hooks/useWaitingRoomSocket';
+import { type WsStatus as WSStatus } from '@/lib/hooks/useWaitingRoomSocket';
 
 interface WSConnectionStatusProps {
   status: WSStatus;

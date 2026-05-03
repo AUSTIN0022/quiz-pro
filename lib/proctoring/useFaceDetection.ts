@@ -1,134 +1,128 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { FaceDetectionEngine } from './FaceDetectionEngine';
 import { useProctoringStore } from '@/lib/stores/proctoring-store';
+import type { DetectionResult } from './types';
+import type { FaceDetectionEngine } from './FaceDetectionEngine';
 
 interface UseFaceDetectionProps {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
   active: boolean;
+  wsEmit?: (event: string, data: Record<string, unknown>) => void;
 }
 
-export function useFaceDetection({ videoRef, active }: UseFaceDetectionProps) {
-  const engine = FaceDetectionEngine.getInstance();
-  const proctoringStore = useProctoringStore();
+export function useFaceDetection({ videoRef, active, wsEmit }: UseFaceDetectionProps) {
   const [isInitialized, setIsInitialized] = useState(false);
+  const engineRef = useRef<FaceDetectionEngine | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
-  const detectionIntervalRef = useRef<number | null>(null);
-  const noFaceCountRef = useRef(0);
-  const multipleFaceCountRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
+  // Timestamp-based tracking for continuous violations
+  const noFaceStartRef = useRef<number | null>(null);
+  const multiFaceStartRef = useRef<number | null>(null);
 
-  // Initialize model on first mount
+  // Selectors for store (avoid re-renders from unrelated state changes)
+  const faceCount = useProctoringStore((s) => s.faceCount);
+  const faceDetected = useProctoringStore((s) => s.faceDetected);
+  const lightingOk = useProctoringStore((s) => s.lightingOk);
+
+  // Initialize model on first mount when active
   useEffect(() => {
+    if (!active || isInitialized) return;
+
     const initModel = async () => {
       try {
-        await engine.loadModel();
+        const { faceEngine } = await import('./index');
+        engineRef.current = faceEngine;
+        await faceEngine.loadModel();
         setIsInitialized(true);
       } catch (error) {
-        console.error('[v0] Failed to initialize face detection:', error);
+        console.error('[QuizPro] Failed to initialize face detection:', error);
       }
     };
 
-    if (active && !isInitialized) {
-      initModel();
+    initModel();
+  }, [active, isInitialized]);
+
+  // Handle detection result — update store and check for violations
+  const handleResult = useCallback(
+    (result: DetectionResult) => {
+      const store = useProctoringStore.getState();
+      store.setFaceCount(result.faceCount);
+      store.setFaceDetected(result.faceCount === 1);
+      store.setLightingOk(result.lightingOk);
+
+      // NO FACE for > 5 continuous seconds
+      if (result.faceCount === 0) {
+        if (!noFaceStartRef.current) {
+          noFaceStartRef.current = Date.now();
+        } else if (Date.now() - noFaceStartRef.current > 5000) {
+          store.addWarning({ type: 'NO_FACE', timestamp: Date.now() });
+          wsEmit?.('PROCTOR_WARNING', {
+            warningType: 'NO_FACE',
+            timestamp: Date.now(),
+          });
+          noFaceStartRef.current = null; // Reset to avoid spam
+        }
+      } else {
+        noFaceStartRef.current = null;
+      }
+
+      // MULTIPLE FACES for > 3 continuous seconds
+      if (result.faceCount >= 2) {
+        if (!multiFaceStartRef.current) {
+          multiFaceStartRef.current = Date.now();
+        } else if (Date.now() - multiFaceStartRef.current > 3000) {
+          store.addWarning({ type: 'MULTIPLE_FACES', timestamp: Date.now() });
+          wsEmit?.('PROCTOR_WARNING', {
+            warningType: 'MULTIPLE_FACES',
+            timestamp: Date.now(),
+          });
+          multiFaceStartRef.current = null;
+        }
+      } else {
+        multiFaceStartRef.current = null;
+      }
+    },
+    [wsEmit]
+  );
+
+  // Main detection loop — uses setTimeout (not setInterval) to prevent stacking
+  const runDetection = useCallback(async () => {
+    if (!videoRef.current || !engineRef.current?.isReady()) {
+      timeoutRef.current = window.setTimeout(runDetection, 2000);
+      return;
     }
 
-    return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [active, isInitialized, engine]);
-
-  // Main detection loop
-  const runDetection = useCallback(async () => {
-    if (!videoRef.current || !isInitialized) return;
-
     try {
-      const result = await engine.detect(videoRef.current);
-
-      // Update face count
-      proctoringStore.setFaceCount(result.faceCount);
-      proctoringStore.setFaceDetected(result.faceCount === 1);
-
-      // Update brightness
-      if (result.brightness < 40) {
-        proctoringStore.setLightingOk(false);
-      } else {
-        proctoringStore.setLightingOk(true);
-      }
-
-      // Handle no face detected (> 5s)
-      if (result.faceCount === 0) {
-        noFaceCountRef.current++;
-        multipleFaceCountRef.current = 0;
-
-        if (noFaceCountRef.current > 2.5) {
-          // ~5s at 2s intervals
-          console.log('[v0] No face detected for 5+ seconds');
-          // Emit warning will be handled by parent component
-          noFaceCountRef.current = 0;
-        }
-      } else if (result.faceCount === 1) {
-        noFaceCountRef.current = 0;
-        multipleFaceCountRef.current = 0;
-      } else if (result.faceCount >= 2) {
-        // Multiple faces detected (> 3s)
-        multipleFaceCountRef.current++;
-        noFaceCountRef.current = 0;
-
-        if (multipleFaceCountRef.current > 1.5) {
-          // ~3s at 2s intervals
-          console.log('[v0] Multiple faces detected for 3+ seconds');
-          // Emit warning will be handled by parent component
-          multipleFaceCountRef.current = 0;
-        }
-      }
+      const result = await engineRef.current.detect(videoRef.current);
+      handleResult(result);
     } catch (error) {
-      console.error('[v0] Detection error:', error);
+      console.error('[QuizPro] Detection error:', error);
     }
 
     // Schedule next detection (every 2 seconds)
-    detectionIntervalRef.current = window.setTimeout(runDetection, 2000);
-  }, [videoRef, isInitialized, engine, proctoringStore]);
+    timeoutRef.current = window.setTimeout(runDetection, 2000);
+  }, [videoRef, handleResult]);
 
-  // Start/stop detection based on active prop
+  // Start/stop detection based on active + initialized
   useEffect(() => {
     if (active && isInitialized) {
-      // Start detection immediately
-      detectionIntervalRef.current = window.setTimeout(runDetection, 500);
-    } else {
-      // Stop detection
-      if (detectionIntervalRef.current) {
-        clearTimeout(detectionIntervalRef.current);
-        detectionIntervalRef.current = null;
-      }
+      // Start detection after short delay for video to stabilize
+      timeoutRef.current = window.setTimeout(runDetection, 500);
     }
 
     return () => {
-      if (detectionIntervalRef.current) {
-        clearTimeout(detectionIntervalRef.current);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
   }, [active, isInitialized, runDetection]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (detectionIntervalRef.current) {
-        clearTimeout(detectionIntervalRef.current);
-      }
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, []);
-
   return {
     isInitialized,
-    faceCount: proctoringStore.faceCount,
-    faceDetected: proctoringStore.faceDetected,
-    lightingOk: proctoringStore.lightingOk,
+    faceCount,
+    faceDetected,
+    lightingOk,
   };
 }

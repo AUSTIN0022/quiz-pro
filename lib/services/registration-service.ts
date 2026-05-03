@@ -232,14 +232,14 @@ class RegistrationService {
     return csv;
   }
 
-  async bulkRevokeRegistrations(registrationIds: string[]): Promise<ApiResponse<{ revoked: number }>> {
+  async bulkRevokeRegistrations(registrationIds: string[], reason: string): Promise<ApiResponse<{ revoked: number }>> {
     await delay(500);
     
     let count = 0;
     registrationIds.forEach(id => {
       const reg = this.registrations.find(r => r.id === id);
       if (reg) {
-        reg.status = 'cancelled';
+        reg.status = 'revoked';
         count++;
       }
     });
@@ -247,8 +247,33 @@ class RegistrationService {
     return {
       success: true,
       data: { revoked: count },
-      message: `${count} registrations revoked`
+      message: `${count} registrations revoked. Reason: ${reason}`
     };
+  }
+
+  async markAsPaid(registrationId: string, reference: string): Promise<ApiResponse<Registration>> {
+    await delay(500);
+    const reg = this.registrations.find(r => r.id === registrationId);
+    if (!reg) return { success: false, error: 'Registration not found' };
+    
+    reg.paymentStatus = 'completed';
+    reg.status = 'confirmed';
+    reg.paymentId = reference;
+    reg.paymentMethod = 'Manual/Offline';
+    
+    return { success: true, data: reg };
+  }
+
+  async allowFreeEntry(registrationId: string): Promise<ApiResponse<Registration>> {
+    await delay(500);
+    const reg = this.registrations.find(r => r.id === registrationId);
+    if (!reg) return { success: false, error: 'Registration not found' };
+    
+    reg.paymentStatus = 'completed'; // Mark as completed to bypass payment checks
+    reg.status = 'confirmed';
+    reg.paymentMethod = 'Admin Bypass';
+    
+    return { success: true, data: reg };
   }
 }
 

@@ -20,6 +20,53 @@ class QuizService {
     };
   }
 
+  async addQuestion(contestId: string, question: Omit<Question, 'id'>): Promise<ApiResponse<Question>> {
+    await delay(300);
+    const newQuestion: Question = {
+      ...question,
+      id: generateId(),
+      contestId
+    };
+    this.questions.push(newQuestion);
+    return { success: true, data: newQuestion };
+  }
+
+  async updateQuestion(id: string, updates: Partial<Question>): Promise<ApiResponse<Question>> {
+    await delay(300);
+    const idx = this.questions.findIndex(q => q.id === id);
+    if (idx === -1) return { success: false, error: 'Question not found' };
+    
+    this.questions[idx] = { ...this.questions[idx], ...updates };
+    return { success: true, data: this.questions[idx] };
+  }
+
+  async deleteQuestion(id: string): Promise<ApiResponse<void>> {
+    await delay(300);
+    const idx = this.questions.findIndex(q => q.id === id);
+    if (idx === -1) return { success: false, error: 'Question not found' };
+    
+    this.questions.splice(idx, 1);
+    return { success: true };
+  }
+
+  async reorderQuestions(contestId: string, orderedIds: string[]): Promise<ApiResponse<void>> {
+    await delay(500);
+    // In a real app, this would update indices in DB
+    // For now, we just simulate success
+    return { success: true };
+  }
+
+  async bulkUpdateQuestions(ids: string[], updates: Partial<Question>): Promise<ApiResponse<void>> {
+    await delay(500);
+    ids.forEach(id => {
+      const idx = this.questions.findIndex(q => q.id === id);
+      if (idx !== -1) {
+        this.questions[idx] = { ...this.questions[idx], ...updates };
+      }
+    });
+    return { success: true };
+  }
+
   async startAttempt(
     contestId: string,
     registrationId: string,

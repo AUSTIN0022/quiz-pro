@@ -1,189 +1,395 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { Clock, Users, Trophy, AlertCircle, CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Shield,
+  Clock,
+  Users,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Play,
+  Info,
+  AlertTriangle,
+  X,
+  CameraOff,
+} from "lucide-react";
 import { contestService } from "@/lib/services/contest-service";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useWaitingRoomSocket, type BroadcastMessage } from "@/lib/hooks/useWaitingRoomSocket";
+import { WSConnectionStatus } from "@/components/features/quiz/WSConnectionStatus";
 import type { Contest } from "@/lib/types";
 
+// ═══════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════
+interface TimeDiff {
+  d: number;
+  h: number;
+  m: number;
+  s: number;
+}
+
+// ═══════════════════════════════════════════════════════
+// MAIN PAGE
+// ═══════════════════════════════════════════════════════
 export default function WaitingRoomPage() {
   const params = useParams();
   const router = useRouter();
   const contestId = params.contestId as string;
 
-  const [contest, setContest] = useState<Contest | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [participantCount, setParticipantCount] = useState(0);
+  // Auth store
+  const sessionToken = useAuthStore((s) => s.sessionToken) || "";
+  const participantId = useAuthStore((s) => s.participantId) || "";
+  const identifier = useAuthStore((s) => s.identifier) || "";
 
+  // Contest data (HTTP)
+  const [contest, setContest] = useState<Contest | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Countdown
+  const [timeToStart, setTimeToStart] = useState<TimeDiff>({ d: 0, h: 0, m: 0, s: 0 });
+  const [showAllRules, setShowAllRules] = useState(false);
+
+  // WS hook
+  const {
+    participantCount,
+    wsStatus,
+    broadcastMessage,
+    clearBroadcast,
+    showStartingOverlay,
+  } = useWaitingRoomSocket(contestId, participantId, sessionToken);
+
+  // ─── Load contest ───────────────────────────────
   useEffect(() => {
-    const loadContest = async () => {
-      const data = await contestService.getContestById(contestId);
-      setContest(data);
+    const load = async () => {
+      const res = await contestService.getContestById(contestId);
+      if (res.success && res.data) {
+        setContest(res.data);
+      }
+      setLoading(false);
     };
-    loadContest();
+    load();
   }, [contestId]);
 
+  // ─── Countdown timer ───────────────────────────
   useEffect(() => {
     if (!contest) return;
 
-    // For demo, set the quiz to start in 30 seconds
-    const startTime = Date.now() + 30000;
+    const tick = () => {
+      const now = new Date();
+      const contestDate = contest.contestDate;
+      const startParts = contest.contestStartTime.split(":");
+      const start = new Date(contestDate);
+      start.setHours(parseInt(startParts[0]), parseInt(startParts[1]), 0);
 
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, startTime - Date.now());
-      setTimeRemaining(remaining);
-
-      // Simulate participants joining
-      setParticipantCount((prev) => Math.min(prev + Math.floor(Math.random() * 3), 50));
-
-      if (remaining <= 0) {
-        setIsReady(true);
-        clearInterval(interval);
+      const diffMs = start.getTime() - now.getTime();
+      if (diffMs <= 0) {
+        setTimeToStart({ d: 0, h: 0, m: 0, s: 0 });
+        return;
       }
-    }, 1000);
 
-    return () => clearInterval(interval);
+      setTimeToStart({
+        d: Math.floor(diffMs / 86400000),
+        h: Math.floor((diffMs % 86400000) / 3600000),
+        m: Math.floor((diffMs % 3600000) / 60000),
+        s: Math.floor((diffMs % 60000) / 1000),
+      });
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, [contest]);
 
-  const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  };
+  // ─── Mask identifier ────────────────────────────
+  const maskedContact = useMemo(() => {
+    if (!identifier) return "***";
+    if (identifier.includes("@")) {
+      const [local, domain] = identifier.split("@");
+      return `${local.slice(0, 2)}***@${domain}`;
+    }
+    return identifier.slice(0, 5) + "****" + identifier.slice(-2);
+  }, [identifier]);
 
-  const startQuiz = () => {
-    router.push(`/quiz/${contestId}/live`);
-  };
+  // Rules
+  const rules = contest?.rules || [
+    "Do not switch tabs during the quiz",
+    "Keep your face visible to the camera at all times",
+    "No external help or resources allowed",
+    "Your progress is auto-saved every 30 seconds",
+  ];
 
-  if (!contest) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #0F2040 0%, #0D1117 100%)" }}>
+        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-lg"
-      >
-        <Card className="overflow-hidden">
-          <div className="bg-primary p-6 text-center">
-            <Trophy className="h-12 w-12 text-primary-foreground mx-auto mb-3" />
-            <h1 className="text-xl font-bold text-primary-foreground">{contest.title}</h1>
-            <p className="text-primary-foreground/80 text-sm mt-1">Waiting Room</p>
+    <div className="min-h-screen relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0F2040 0%, #0D1117 100%)" }}>
+
+      {/* ─── Top Bar ──────────────────────────────── */}
+      <header className="fixed top-0 left-0 right-0 z-40 h-[52px] flex items-center justify-between px-4 sm:px-6" style={{ background: "rgba(15,32,64,0.80)", backdropFilter: "blur(12px)" }}>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
+            <Shield className="w-3.5 h-3.5 text-white/70" />
+          </div>
+          <span className="text-sm font-semibold text-white/90">QuizCraft Pro</span>
+        </div>
+        <WSConnectionStatus status={wsStatus} variant="compact" />
+      </header>
+
+      {/* ─── Broadcast Banner ─────────────────────── */}
+      <AnimatePresence>
+        {broadcastMessage && (
+          <BroadcastBanner message={broadcastMessage} onDismiss={clearBroadcast} />
+        )}
+      </AnimatePresence>
+
+      {/* ─── Starting Overlay ─────────────────────── */}
+      <AnimatePresence>
+        {showStartingOverlay && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "rgba(249,115,22,0.95)", backdropFilter: "blur(8px)" }}
+          >
+            <div className="text-center">
+              <motion.div
+                initial={{ scale: 0.5 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", damping: 15 }}
+              >
+                <Play className="w-20 h-20 text-white mx-auto mb-4" fill="white" />
+              </motion.div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white">Contest is starting!</h2>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Main Content ─────────────────────────── */}
+      <main className="flex flex-col items-center pt-24 sm:pt-32 pb-24 px-4">
+        {/* Chip */}
+        <div className="px-4 py-1.5 rounded-full border border-white/20 text-white/80 text-sm font-medium mb-6">
+          Waiting Room
+        </div>
+
+        {/* Title */}
+        <h1 className="text-2xl sm:text-[32px] font-bold text-white text-center max-w-lg leading-tight mb-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          {contest?.title || "Quiz"}
+        </h1>
+
+        <p className="text-white/60 text-sm mb-8">Contest begins in</p>
+
+        {/* ─── Countdown ──────────────────────────── */}
+        <CountdownDisplay time={timeToStart} />
+
+        {/* ─── Participant Count ──────────────────── */}
+        <div className="mt-8 flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <motion.span
+            key={participantCount}
+            initial={{ opacity: 0.5, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-sm text-white/70"
+          >
+            {participantCount.toLocaleString()} participants in the waiting room
+          </motion.span>
+        </div>
+
+        {/* ─── Info Cards ─────────────────────────── */}
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
+          {/* Your Details */}
+          <div className="rounded-2xl p-6" style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span className="text-sm font-semibold text-green-400">Verified</span>
+            </div>
+            <div className="space-y-3">
+              <InfoField label="Participant ID" value={participantId || "—"} mono />
+              <InfoField label="Contact" value={maskedContact} />
+              <InfoField label="Contest" value={contest?.title || "—"} />
+            </div>
           </div>
 
-          <CardContent className="p-6 space-y-6">
-            {/* Countdown Timer */}
-            <div className="text-center">
-              {!isReady ? (
+          {/* Contest Info */}
+          <div className="rounded-2xl p-6" style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="w-5 h-5 text-white/60" />
+              <span className="text-sm font-semibold text-white">What to Expect</span>
+            </div>
+            <div className="space-y-3">
+              <InfoField label="Duration" value={`${contest?.duration || 90} minutes`} />
+              <InfoField label="Questions" value={`${contest?.totalQuestions || "—"} questions`} />
+            </div>
+
+            {/* Rules */}
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <p className="text-xs text-white/50 mb-2">Rules</p>
+              <p className="text-sm text-white/80">• {rules[0]}</p>
+              {rules.length > 1 && (
                 <>
-                  <p className="text-sm text-muted-foreground mb-2">Quiz starts in</p>
-                  <motion.div
-                    key={timeRemaining}
-                    initial={{ scale: 1.1 }}
-                    animate={{ scale: 1 }}
-                    className="text-5xl font-mono font-bold text-primary"
+                  <AnimatePresence>
+                    {showAllRules && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        {rules.slice(1).map((rule, i) => (
+                          <p key={i} className="text-sm text-white/80 mt-1">• {rule}</p>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRules(!showAllRules)}
+                    className="flex items-center gap-1 text-xs text-white/50 hover:text-white/70 mt-2 transition-colors"
                   >
-                    {timeRemaining !== null ? formatTime(timeRemaining) : "--:--"}
-                  </motion.div>
+                    {showAllRules ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    {showAllRules ? "Show less" : `View all ${rules.length} rules`}
+                  </button>
                 </>
-              ) : (
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="space-y-2"
-                >
-                  <CheckCircle className="h-12 w-12 text-success mx-auto" />
-                  <p className="text-lg font-semibold text-success">Quiz is ready!</p>
-                </motion.div>
               )}
             </div>
+          </div>
+        </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-muted rounded-lg p-4 text-center">
-                <Users className="h-5 w-5 text-primary mx-auto mb-1" />
-                <p className="text-2xl font-bold text-foreground">{participantCount}</p>
-                <p className="text-xs text-muted-foreground">Participants joined</p>
-              </div>
-              <div className="bg-muted rounded-lg p-4 text-center">
-                <Clock className="h-5 w-5 text-primary mx-auto mb-1" />
-                <p className="text-2xl font-bold text-foreground">{contest.duration}</p>
-                <p className="text-xs text-muted-foreground">Minutes duration</p>
-              </div>
+        {/* Dev hint */}
+        <p className="mt-12 text-xs text-white/20">Press Ctrl+Shift+S to simulate contest start</p>
+      </main>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// COUNTDOWN DISPLAY
+// ═══════════════════════════════════════════════════════
+function CountdownDisplay({ time }: { time: TimeDiff }) {
+  const units = [
+    ...(time.d > 0 ? [{ value: time.d, label: "DAYS" }] : []),
+    { value: time.h, label: "HRS" },
+    { value: time.m, label: "MIN" },
+    { value: time.s, label: "SEC" },
+  ];
+
+  return (
+    <div className="flex items-center gap-3">
+      {units.map((unit, i) => (
+        <div key={unit.label} className="flex items-center gap-3">
+          <div className="flex flex-col items-center">
+            <div className="w-[72px] sm:w-20 rounded-xl p-3 sm:p-4 flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
+              <motion.span
+                key={`${unit.label}-${unit.value}`}
+                initial={{ scale: 1.1 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.1 }}
+                className="text-3xl sm:text-[56px] font-bold text-white font-mono leading-none"
+              >
+                {String(unit.value).padStart(2, "0")}
+              </motion.span>
             </div>
+            <span className="text-[10px] text-white/40 uppercase tracking-[0.1em] mt-2 font-medium">
+              {unit.label}
+            </span>
+          </div>
 
-            {/* Quiz Info */}
-            <div className="rounded-lg border p-4 space-y-2">
-              <h3 className="font-medium text-foreground">Quiz Information</h3>
-              <div className="grid gap-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Questions</span>
-                  <span className="text-foreground">{contest.totalQuestions}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Marks per Question</span>
-                  <span className="text-foreground">{contest.marksPerQuestion}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Negative Marking</span>
-                  <span className="text-foreground">
-                    {contest.negativeMarking ? `${contest.negativeMarkingValue} per wrong` : "No"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Question Navigation</span>
-                  <span className="text-foreground">
-                    {contest.allowSkipping ? "Free navigation" : "Sequential only"}
-                  </span>
-                </div>
-              </div>
-            </div>
+          {i < units.length - 1 && (
+            <span className="text-white/30 text-2xl sm:text-[32px] font-bold self-start mt-3 sm:mt-4">:</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
-            {/* Important Notice */}
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                Once you start the quiz, the timer will begin and cannot be paused.
-                Make sure you are ready before clicking Start.
-              </AlertDescription>
-            </Alert>
+// ═══════════════════════════════════════════════════════
+// BROADCAST BANNER
+// ═══════════════════════════════════════════════════════
+function BroadcastBanner({ message, onDismiss }: { message: BroadcastMessage; onDismiss: () => void }) {
+  const [progress, setProgress] = useState(100);
 
-            {/* Start Button */}
-            <Button
-              className="w-full"
-              size="lg"
-              disabled={!isReady}
-              onClick={startQuiz}
-            >
-              {isReady ? "Start Quiz Now" : "Waiting for quiz to begin..."}
-            </Button>
+  useEffect(() => {
+    const start = Date.now();
+    const duration = 10000;
 
-            {/* Tips */}
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p className="font-medium text-foreground">Quick Tips:</p>
-              <ul className="list-disc list-inside space-y-0.5">
-                <li>Stay in fullscreen mode throughout the quiz</li>
-                <li>Keep your face visible to the camera</li>
-                <li>Do not switch tabs or windows</li>
-                <li>Your progress is auto-saved every 30 seconds</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const remaining = Math.max(0, 100 - (elapsed / duration) * 100);
+      setProgress(remaining);
+      if (remaining <= 0) {
+        onDismiss();
+        clearInterval(tick);
+      }
+    }, 50);
+
+    return () => clearInterval(tick);
+  }, [onDismiss]);
+
+  const bgMap = {
+    info: "rgba(29,78,216,0.90)",
+    warning: "rgba(180,83,9,0.90)",
+    urgent: "rgba(185,28,28,0.90)",
+  };
+
+  const borderMap = {
+    info: "#3B82F6",
+    warning: "#F59E0B",
+    urgent: "#EF4444",
+  };
+
+  const iconMap = {
+    info: Info,
+    warning: AlertTriangle,
+    urgent: AlertTriangle,
+  };
+
+  const Icon = iconMap[message.type];
+
+  return (
+    <motion.div
+      initial={{ y: -60, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: -60, opacity: 0 }}
+      className="fixed top-[52px] left-0 right-0 z-50"
+    >
+      <div
+        className="mx-4 mt-2 rounded-lg border p-3 flex items-center gap-3"
+        style={{ background: bgMap[message.type], borderColor: borderMap[message.type] }}
+      >
+        <Icon className="w-5 h-5 text-white flex-shrink-0" />
+        <span className="text-sm text-white flex-1">{message.text}</span>
+        <button type="button" onClick={onDismiss} className="text-white/60 hover:text-white">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      {/* Progress bar */}
+      <div className="mx-4 h-[3px] rounded-b-full overflow-hidden" style={{ background: "rgba(255,255,255,0.1)" }}>
+        <div className="h-full transition-all duration-100" style={{ width: `${progress}%`, background: borderMap[message.type] }} />
+      </div>
+    </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// INFO FIELD
+// ═══════════════════════════════════════════════════════
+function InfoField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <p className="text-xs text-white/40">{label}</p>
+      <p className={`text-sm text-white/90 ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
 }

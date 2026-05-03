@@ -1,118 +1,147 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { WS } from '@/lib/constants/WS_EVENTS';
+import { getSocket, connectSocket } from '@/lib/ws-client';
 
-interface WaitingRoomSocketEvents {
-  onParticipantCountChange: (count: number) => void;
-  onContestStarted: () => void;
-  onContestDelayed: (newStartTime: string) => void;
-  onAdminBroadcast: (message: { type: string; text: string }) => void;
+// ============================================
+// Types
+// ============================================
+
+export type WsStatus = 'connected' | 'reconnecting' | 'disconnected';
+
+export interface BroadcastMessage {
+  type: 'info' | 'warning' | 'urgent';
+  text: string;
+  timestamp: number;
 }
 
-export type WSStatus = 'connected' | 'reconnecting' | 'disconnected';
+// ============================================
+// Seed mode
+// ============================================
+const USE_SEED_WS = process.env.NEXT_PUBLIC_USE_SEED_WS === 'true' || true;
+
+// ============================================
+// Hook
+// ============================================
 
 export function useWaitingRoomSocket(
   contestId: string,
   participantId: string,
-  callbacks?: Partial<WaitingRoomSocketEvents>
+  sessionToken: string
 ) {
-  const socketRef = useRef<Socket | null>(null);
-  const [wsStatus, setWsStatus] = useState<WSStatus>('disconnected');
-  const reconnectAttemptRef = useRef(0);
-  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const router = useRouter();
+  const [participantCount, setParticipantCount] = useState(0);
+  const [wsStatus, setWsStatus] = useState<WsStatus>('disconnected');
+  const [broadcastMessage, setBroadcastMessage] = useState<BroadcastMessage | null>(null);
+  const [showStartingOverlay, setShowStartingOverlay] = useState(false);
+  const [contestStartTime, setContestStartTime] = useState<Date | null>(null);
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const seedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ─── SEED MODE ────────────────────────────────
   useEffect(() => {
-    // Initialize socket connection
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001', {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 30000,
-      reconnectionAttempts: Infinity,
-    });
+    if (!USE_SEED_WS) return;
 
-    socketRef.current = socket;
+    setWsStatus('connected');
 
-    // Connect event
-    socket.on('connect', () => {
-      console.log('[v0] WebSocket connected');
-      setWsStatus('connected');
-      reconnectAttemptRef.current = 0;
+    // Initial count after 500ms
+    const initTimer = setTimeout(() => {
+      setParticipantCount(847);
+    }, 500);
 
-      // Join waiting room
-      socket.emit('JOIN_WAITING_ROOM', {
-        contestId,
-        participantId,
-        timestamp: new Date().toISOString(),
+    // Random ±5 variation every 3s
+    seedIntervalRef.current = setInterval(() => {
+      setParticipantCount((prev) => {
+        const delta = Math.floor(Math.random() * 11) - 5; // -5 to +5
+        return Math.max(0, prev + delta);
       });
+    }, 3000);
 
-      // Start ping interval
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+    // Dev shortcut: Ctrl+Shift+S to simulate contest start
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        setShowStartingOverlay(true);
+        setTimeout(() => {
+          router.push(`/quiz/${contestId}/live`);
+        }, 1800);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(initTimer);
+      if (seedIntervalRef.current) clearInterval(seedIntervalRef.current);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contestId, router]);
+
+  // ─── REAL WS MODE ─────────────────────────────
+  useEffect(() => {
+    if (USE_SEED_WS) return;
+
+    connectSocket(sessionToken);
+    const socket = getSocket();
+
+    socket.on('connect', () => {
+      setWsStatus('connected');
+      socket.emit(WS.JOIN_WAITING_ROOM, { contestId, participantId, sessionToken });
+
       pingIntervalRef.current = setInterval(() => {
-        socket.emit('PING', {
-          timestamp: new Date().toISOString(),
-        });
+        socket.emit(WS.PING, { timestamp: Date.now() });
       }, 30000);
     });
 
-    // Disconnect event
     socket.on('disconnect', () => {
-      console.log('[v0] WebSocket disconnected');
       setWsStatus('disconnected');
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
     });
 
-    // Reconnecting event
-    socket.on('reconnect_attempt', () => {
-      console.log('[v0] WebSocket reconnecting...');
+    socket.io.on('reconnect_attempt', () => {
       setWsStatus('reconnecting');
-      reconnectAttemptRef.current++;
     });
 
-    // Participant count update
-    socket.on('WAITING_ROOM_COUNT', (data: { count: number }) => {
-      callbacks?.onParticipantCountChange?.(data.count);
+    socket.on(WS.WAITING_ROOM_COUNT, (data: { count: number }) => {
+      setParticipantCount(data.count);
     });
 
-    // Contest started
-    socket.on('CONTEST_STARTED', () => {
-      console.log('[v0] Contest started');
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-      callbacks?.onContestStarted?.();
+    socket.on(WS.CONTEST_STARTED, () => {
+      setShowStartingOverlay(true);
+      setTimeout(() => {
+        router.push(`/quiz/${contestId}/live`);
+      }, 1800);
     });
 
-    // Contest delayed
-    socket.on('CONTEST_DELAYED', (data: { newStartTime: string }) => {
-      console.log('[v0] Contest delayed');
-      callbacks?.onContestDelayed?.(data.newStartTime);
+    socket.on(WS.CONTEST_DELAYED, (data: { newStartTime: string; reason: string }) => {
+      setContestStartTime(new Date(data.newStartTime));
     });
 
-    // Admin broadcast
-    socket.on('ADMIN_BROADCAST', (data: { type: string; text: string }) => {
-      console.log('[v0] Admin broadcast:', data);
-      callbacks?.onAdminBroadcast?.(data);
-    });
-
-    // Pong response (latency tracking)
-    socket.on('PONG', (data: { timestamp: string }) => {
-      const latency = Date.now() - new Date(data.timestamp).getTime();
-      console.log(`[v0] WebSocket latency: ${latency}ms`);
-    });
-
-    // Connection error
-    socket.on('connect_error', (error) => {
-      console.error('[v0] WebSocket connection error:', error);
-      setWsStatus('disconnected');
+    socket.on(WS.ADMIN_BROADCAST, (msg: BroadcastMessage) => {
+      setBroadcastMessage(msg);
     });
 
     return () => {
+      socket.off(WS.WAITING_ROOM_COUNT);
+      socket.off(WS.CONTEST_STARTED);
+      socket.off(WS.CONTEST_DELAYED);
+      socket.off(WS.ADMIN_BROADCAST);
+      socket.off('connect');
+      socket.off('disconnect');
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-      socket.disconnect();
     };
-  }, [contestId, participantId, callbacks]);
+  }, [contestId, participantId, sessionToken, router]);
+
+  const clearBroadcast = useCallback(() => setBroadcastMessage(null), []);
 
   return {
-    socket: socketRef.current,
+    participantCount,
     wsStatus,
+    broadcastMessage,
+    clearBroadcast,
+    showStartingOverlay,
+    setShowStartingOverlay,
+    contestStartTime,
   };
 }

@@ -63,6 +63,15 @@ class SubmissionService {
     };
   }
 
+  async getSubmissions(contestId: string): Promise<ApiResponse<QuizAttempt[]>> {
+    await delay(300);
+    const submissions = this.submissions.filter(s => s.contestId === contestId);
+    return {
+      success: true,
+      data: submissions
+    };
+  }
+
   async publishResults(contestId: string): Promise<ApiResponse<{ published: boolean }>> {
     await delay(500);
 
@@ -101,6 +110,29 @@ class SubmissionService {
     return {
       success: true,
       data: submission
+    };
+  }
+
+  async getProctoringAlerts(contestId: string): Promise<ApiResponse<any[]>> {
+    await delay(500);
+
+    // Filter submissions for this contest and map to proctoring alert summary
+    const alerts = this.submissions
+      .filter(s => s.contestId === contestId)
+      .map(s => ({
+        id: s.id,
+        participantId: s.participantId,
+        name: `Participant ${s.participantId.split('-')[1] || s.participantId}`,
+        avatarInitials: 'P',
+        alertCount: (s.proctoringViolations || []).length,
+        violations: s.proctoringViolations || [],
+        status: s.status,
+        lastAlertAt: s.proctoringViolations?.length ? s.proctoringViolations[s.proctoringViolations.length - 1].timestamp : null
+      }));
+
+    return {
+      success: true,
+      data: alerts
     };
   }
 }

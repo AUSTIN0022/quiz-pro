@@ -131,13 +131,18 @@ class AuthService {
       };
     }
 
+    // Normalize OTP
+    const cleanOtp = otp.trim();
+
     // Verify OTP (in seed mode, accept "123456" always)
-    if (otp !== stored.otp && otp !== '123456') {
-      stored.attempts++;
+    const isValid = cleanOtp === '123456' || (stored && cleanOtp === stored.otp);
+
+    if (!isValid) {
+      if (stored) stored.attempts++;
       return {
         success: false,
         error: 'INCORRECT_OTP',
-        message: `Incorrect OTP. ${3 - stored.attempts} attempts remaining.`
+        message: `Incorrect OTP. ${stored ? 3 - stored.attempts : 3} attempts remaining.`
       };
     }
 

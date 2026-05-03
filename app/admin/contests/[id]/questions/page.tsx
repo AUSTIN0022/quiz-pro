@@ -1,208 +1,542 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-  ArrowLeft,
-  Upload,
-  Database,
-  FileQuestion,
+import { useState, useMemo } from 'react';
+import { useParams } from 'next/navigation';
+import { 
+  Plus, 
+  Upload, 
+  Search, 
+  Filter, 
+  MoreHorizontal, 
+  Pencil, 
+  Copy, 
+  Trash2, 
+  Eye, 
+  GripVertical,
+  AlertCircle,
   CheckCircle2,
+  Info,
+  ChevronDown,
+  ArrowRight,
+  Download,
+  FileJson,
+  FileSpreadsheet,
+  Loader2
 } from 'lucide-react';
-import QuestionSelector from '@/components/admin/question-selector';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useContestDetail } from '@/lib/hooks/useContestDetail';
+import { useContestQuestions } from '@/lib/hooks/useContestQuestions';
+import { deriveContestPhase } from '@/lib/utils/contest';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { Question, DifficultyLevel } from '@/lib/types';
+import { toast } from 'sonner';
 
-export default function ContestQuestionsPage({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const [selectionMode, setSelectionMode] = useState<'upload' | 'database' | null>(null);
-  const [loading, setLoading] = useState(false);
+export default function QuestionsTabPage() {
+  const { id } = useParams() as { id: string };
+  const { data: contest } = useContestDetail(id);
+  const { 
+    data: questions, 
+    isLoading, 
+    deleteQuestion, 
+    duplicateQuestion,
+    bulkUpdateQuestions
+  } = useContestQuestions(id);
 
-  useEffect(() => {
-    const user = localStorage.getItem('user');
-    if (!user) {
-      router.push('/auth/login');
-    }
-  }, [router]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | DifficultyLevel>('all');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  const handleUploadMode = () => {
-    setSelectionMode('upload');
-  };
+  const phase = useMemo(() => {
+    if (!contest) return 'DRAFT';
+    return deriveContestPhase(contest);
+  }, [contest]);
 
-  const handleDatabaseMode = () => {
-    setSelectionMode('database');
-  };
+  const filteredQuestions = useMemo(() => {
+    if (!questions) return [];
+    return questions.filter(q => {
+      const matchesSearch = q.text.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesDifficulty = difficultyFilter === 'all' || q.difficulty === difficultyFilter;
+      return matchesSearch && matchesDifficulty;
+    });
+  }, [questions, searchQuery, difficultyFilter]);
+
+  const stats = useMemo(() => {
+    if (!questions) return { total: 0, easy: 0, medium: 0, hard: 0 };
+    return {
+      total: questions.length,
+      easy: questions.filter(q => q.difficulty === 'easy').length,
+      medium: questions.filter(q => q.difficulty === 'medium').length,
+      hard: questions.filter(q => q.difficulty === 'hard').length,
+    };
+  }, [questions]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse font-medium">Loading question bank...</p>
+      </div>
+    );
+  }
+
+  const isDraft = phase === 'DRAFT';
+  const isLive = phase === 'LIVE';
+  const isEnded = phase === 'ENDED' || phase === 'RESULTS_PUBLISHED';
+  const isPublished = phase === 'PUBLISHED' || phase === 'REGISTRATION_CLOSED';
+
+  const canEdit = isDraft || isPublished || isEnded;
+  const canAdd = isDraft || isPublished;
+  const canDelete = isDraft;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <Link href={`/admin/contests/${params.id}`} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-5 w-5" />
-            Back to Contest
-          </Link>
-          <h1 className="text-2xl font-bold">Add Questions</h1>
-          <div className="w-[120px]" />
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {!selectionMode ? (
-          <>
-            {/* Selection Mode */}
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Choose Question Source</h2>
-              <p className="text-muted-foreground mb-6">
-                You can either upload your own questions or select from our database of {Math.floor(Math.random() * 500) + 1000}+ questions
-              </p>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Upload Questions */}
-                <Card className="border-border/50 cursor-pointer hover:shadow-lg transition-shadow" onClick={handleUploadMode}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <Upload className="h-5 w-5" />
-                          Upload Questions
-                        </CardTitle>
-                        <CardDescription className="mt-2">Upload your own question file</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2 text-sm">
-                      <p className="font-medium">Supported formats:</p>
-                      <ul className="text-muted-foreground space-y-1 ml-4 list-disc">
-                        <li>CSV (.csv)</li>
-                        <li>Excel (.xlsx)</li>
-                        <li>JSON (.json)</li>
-                      </ul>
-                    </div>
-                    <Button className="w-full" asChild>
-                      <span>Upload Questions</span>
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                {/* Select from Database */}
-                <Card className="border-border/50 cursor-pointer hover:shadow-lg transition-shadow" onClick={handleDatabaseMode}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <Database className="h-5 w-5" />
-                          Select from Database
-                        </CardTitle>
-                        <CardDescription className="mt-2">Pick from our question library</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2 text-sm">
-                      <p className="font-medium">Benefits:</p>
-                      <ul className="text-muted-foreground space-y-1 ml-4 list-disc">
-                        <li>Pre-verified questions</li>
-                        <li>Difficulty filtering</li>
-                        <li>Topic-based selection</li>
-                        <li>Percentage-based distribution</li>
-                      </ul>
-                    </div>
-                    <Button className="w-full" asChild>
-                      <span>Select from Database</span>
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* PHASE BANNER */}
+      <AnimatePresence>
+        {phase !== 'DRAFT' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn(
+              "flex items-center justify-between p-4 rounded-xl border",
+              isPublished && "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400",
+              isLive && "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400",
+              isEnded && "bg-muted/50 border-border text-muted-foreground"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              {isPublished ? <Info className="h-5 w-5" /> : 
+               isLive ? <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" /> : 
+               <CheckCircle2 className="h-5 w-5" />}
+              <span className="text-sm font-medium">
+                {isPublished && "You can add new questions. Existing questions cannot be deleted."}
+                {isLive && `Contest is live. Questions are locked. ${contest?._counts?.registered || 0} participants are answering right now.`}
+                {isEnded && "Contest has ended. Only hints and explanations can be edited."}
+              </span>
             </div>
-          </>
-        ) : selectionMode === 'upload' ? (
-          <UploadQuestionsMode contestId={params.id} onBack={() => setSelectionMode(null)} />
-        ) : (
-          <DatabaseQuestionsMode contestId={params.id} onBack={() => setSelectionMode(null)} />
+            {isLive && (
+              <Button size="sm" variant="outline" className="bg-white/50 border-amber-500/30">
+                Go to Live Monitor
+              </Button>
+            )}
+          </motion.div>
         )}
-      </main>
+      </AnimatePresence>
+
+      {/* HEADER ROW */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="space-y-1.5">
+          <h1 className="text-3xl font-black tracking-tight">Question Bank</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">
+              {stats.total} questions | 
+              <span className="text-green-600 dark:text-green-400 ml-1">Easy: {stats.easy}</span> | 
+              <span className="text-amber-600 dark:text-amber-400 ml-1">Medium: {stats.medium}</span> | 
+              <span className="text-destructive ml-1">Hard: {stats.hard}</span>
+            </span>
+          </div>
+          {/* Difficulty Bar */}
+          <div className="flex h-1.5 w-64 rounded-full overflow-hidden bg-muted mt-2">
+            <div className="bg-green-500" style={{ width: `${(stats.easy / stats.total) * 100}%` }} />
+            <div className="bg-amber-500" style={{ width: `${(stats.medium / stats.total) * 100}%` }} />
+            <div className="bg-destructive" style={{ width: `${(stats.hard / stats.total) * 100}%` }} />
+          </div>
+        </div>
+
+        {canAdd && (
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import CSV
+            </Button>
+            <Button className="bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Question
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* FILTER + SEARCH BAR */}
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search questions..." 
+            className="pl-9 bg-muted/30"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex p-1 bg-muted/50 rounded-lg border border-border/50">
+          {(['all', 'easy', 'medium', 'hard'] as const).map(d => (
+            <button
+              key={d}
+              onClick={() => setDifficultyFilter(d)}
+              className={cn(
+                "px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all",
+                difficultyFilter === d 
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-border" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              Sort: Default Order
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem>Default Order</DropdownMenuItem>
+            <DropdownMenuItem>A-Z</DropdownMenuItem>
+            <DropdownMenuItem>Hardest First</DropdownMenuItem>
+            <DropdownMenuItem>Newest</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* QUESTIONS TABLE */}
+      <Card className="border-border/50 overflow-hidden">
+        <CardContent className="p-0">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 border-b">
+              <tr className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">
+                <th className="w-12 px-4 py-3">
+                  <Checkbox 
+                    checked={selectedIds.length === filteredQuestions.length && filteredQuestions.length > 0}
+                    onCheckedChange={(checked) => {
+                      if (checked) setSelectedIds(filteredQuestions.map(q => q.id));
+                      else setSelectedIds([]);
+                    }}
+                  />
+                </th>
+                <th className="w-12 px-4 py-3">#</th>
+                <th className="px-4 py-3 text-left">Question</th>
+                <th className="w-24 px-4 py-3 text-center">Difficulty</th>
+                <th className="w-24 px-4 py-3 text-center">Options</th>
+                <th className="w-20 px-4 py-3 text-center">Hint</th>
+                <th className="px-4 py-3 text-left">Tags</th>
+                <th className="w-24 px-4 py-3 text-right pr-6">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {filteredQuestions.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-20 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center">
+                        <Search className="h-8 w-8 text-muted-foreground/30" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-lg">No questions found</p>
+                        <p className="text-muted-foreground text-sm">Try adjusting your filters or search query.</p>
+                      </div>
+                      {canAdd && (
+                        <Button variant="outline" size="sm" className="mt-2" onClick={() => toast.info("Add first question logic here")}>
+                          Add First Question
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredQuestions.map((q, idx) => (
+                  <motion.tr 
+                    key={q.id}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className={cn(
+                      "group hover:bg-muted/30 transition-colors",
+                      selectedIds.includes(q.id) && "bg-primary/5"
+                    )}
+                  >
+                    <td className="px-4 py-4">
+                      <Checkbox 
+                        checked={selectedIds.includes(q.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) setSelectedIds(prev => [...prev, q.id]);
+                          else setSelectedIds(prev => prev.filter(id => id !== q.id));
+                        }}
+                      />
+                    </td>
+                    <td className="px-4 py-4 font-mono text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        {isDraft && <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-100 cursor-grab" />}
+                        {idx + 1}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 font-medium max-w-[300px] truncate">
+                      {q.text}
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <Badge variant="outline" className={cn(
+                        "text-[10px] font-bold uppercase",
+                        q.difficulty === 'easy' ? "text-green-600 border-green-500/20 bg-green-500/5" :
+                        q.difficulty === 'medium' ? "text-amber-600 border-amber-500/20 bg-amber-500/5" :
+                        "text-destructive border-destructive/20 bg-destructive/5"
+                      )}>
+                        {q.difficulty}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-4 text-center text-muted-foreground">
+                      {q.options.length} options
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      {q.hint ? (
+                        <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400 text-[10px]">Yes</Badge>
+                      ) : (
+                        <span className="text-muted-foreground/30">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1.5">
+                        {q.tags?.slice(0, 2).map(tag => (
+                          <Badge key={tag} variant="outline" className="text-[9px] h-5 bg-muted/20">{tag}</Badge>
+                        ))}
+                        {(q.tags?.length || 0) > 2 && (
+                          <Badge variant="outline" className="text-[9px] h-5">+{q.tags!.length - 2}</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-right pr-6">
+                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isLive ? (
+                          <Button size="icon" variant="ghost" className="h-8 w-8">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="icon" variant="ghost" className="h-8 w-8 text-primary">
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit Question</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-8 w-8"
+                              onClick={() => duplicateQuestion(q)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    className="h-8 w-8 text-destructive"
+                                    disabled={!canDelete}
+                                    onClick={() => deleteQuestion(q.id)}
+                                  >
+                                    <Trash2 className={cn("h-4 w-4", !canDelete && "opacity-30")} />
+                                  </Button>
+                                </TooltipTrigger>
+                                {!canDelete && (
+                                  <TooltipContent>
+                                    Deleting questions after publishing affects registered participants
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            </TooltipProvider>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {/* BULK ACTIONS BAR */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            exit={{ y: 100 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-6 px-6 py-3 bg-foreground text-background rounded-2xl shadow-2xl"
+          >
+            <div className="flex items-center gap-2 pr-6 border-r border-background/20">
+              <span className="text-sm font-black">{selectedIds.length}</span>
+              <span className="text-xs font-medium text-background/60">selected</span>
+              <button 
+                className="text-[10px] font-bold uppercase tracking-wider text-primary underline underline-offset-4 ml-2"
+                onClick={() => setSelectedIds([])}
+              >
+                Deselect
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-background hover:bg-background/10 h-8 text-xs">
+                    Difficulty
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => bulkUpdateQuestions({ ids: selectedIds, updates: { difficulty: 'easy' } })}>Easy</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => bulkUpdateQuestions({ ids: selectedIds, updates: { difficulty: 'medium' } })}>Medium</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => bulkUpdateQuestions({ ids: selectedIds, updates: { difficulty: 'hard' } })}>Hard</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-red-400 hover:bg-red-400/10 h-8 text-xs"
+                      disabled={!canDelete}
+                    >
+                      Delete
+                    </Button>
+                  </TooltipTrigger>
+                  {!canDelete && <TooltipContent>Cannot delete after publishing</TooltipContent>}
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* IMPORT CSV MODAL */}
+      <ImportCSVModal 
+        isOpen={isImportModalOpen} 
+        onClose={() => setIsImportModalOpen(false)} 
+        contestId={id}
+      />
     </div>
   );
 }
 
-function UploadQuestionsMode({ contestId, onBack }: { contestId: string; onBack: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+// ═══════════════════════════════════════════════════════
+// ImportCSVModal Component
+// ═══════════════════════════════════════════════════════
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFile(e.target.files[0]);
+function ImportCSVModal({ isOpen, onClose, contestId }: { isOpen: boolean; onClose: () => void; contestId: string }) {
+  const [step, setStep] = useState<'upload' | 'mapping' | 'preview'>('upload');
+  const [isImporting, setIsImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const handleImport = async () => {
+    setIsImporting(true);
+    // Simulated import progress
+    for (let i = 0; i <= 100; i += 10) {
+      setProgress(i);
+      await new Promise(r => setTimeout(r, 100));
     }
-  };
-
-  const handleUpload = async () => {
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      console.log('File uploaded:', file.name);
-      alert('Questions uploaded successfully! Total: ' + Math.floor(Math.random() * 50 + 20) + ' questions');
-      onBack();
-    } finally {
-      setUploading(false);
-    }
+    setIsImporting(false);
+    toast.success('Questions imported successfully!');
+    onClose();
   };
 
   return (
-    <Card className="border-border/50">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Upload className="h-5 w-5" />
-          Upload Questions
-        </CardTitle>
-        <CardDescription>Upload your question file in CSV, Excel, or JSON format</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="border-2 border-dashed border-border/50 rounded-lg p-8 text-center cursor-pointer hover:bg-secondary/20 transition-colors">
-          <input
-            type="file"
-            id="file-upload"
-            className="hidden"
-            onChange={handleFileChange}
-            accept=".csv,.xlsx,.json"
-          />
-          <label htmlFor="file-upload" className="cursor-pointer space-y-4">
-            <FileQuestion className="h-12 w-12 mx-auto text-muted-foreground" />
-            <div>
-              <p className="font-semibold">Drop your file here or click to browse</p>
-              <p className="text-sm text-muted-foreground mt-1">CSV, Excel, or JSON files only</p>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Import Questions</DialogTitle>
+          <DialogDescription>
+            Import questions from a CSV or JSON file. Follow our template for best results.
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 'upload' && (
+          <div className="space-y-6 py-6">
+            <div className="flex flex-col items-center justify-center h-[200px] border-2 border-dashed rounded-2xl bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer">
+              <Upload className="h-10 w-10 text-muted-foreground/50 mb-3" />
+              <p className="text-sm font-medium">Drag CSV file here or click to browse</p>
+              <p className="text-xs text-muted-foreground mt-1">Accepts .csv, .json (Max 50MB)</p>
             </div>
-            {file && (
-              <div className="mt-4 pt-4 border-t border-border/50">
-                <Badge variant="secondary">{file.name}</Badge>
-                <p className="text-xs text-muted-foreground mt-2">{(file.size / 1024).toFixed(2)} KB</p>
+            
+            <div className="flex items-center justify-between p-4 rounded-xl bg-primary/5 border border-primary/10">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Download className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Import Template</p>
+                  <p className="text-xs text-muted-foreground">Download the required column structure</p>
+                </div>
               </div>
-            )}
-          </label>
-        </div>
+              <Button size="sm" variant="outline">Download CSV</Button>
+            </div>
+          </div>
+        )}
 
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={onBack}>
-            Cancel
-          </Button>
-          <Button onClick={handleUpload} disabled={!file || uploading} className="flex-1">
-            {uploading ? 'Uploading...' : 'Upload Questions'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+        {isImporting && (
+          <div className="space-y-4 py-8">
+            <div className="flex items-center justify-between text-sm font-medium">
+              <span>Importing 24 questions...</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-primary"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
 
-function DatabaseQuestionsMode({ contestId, onBack }: { contestId: string; onBack: () => void }) {
-  return (
-    <Suspense fallback={<div>Loading question selector...</div>}>
-      <QuestionSelector contestId={contestId} onBack={onBack} />
-    </Suspense>
+        <DialogFooter>
+          {step === 'upload' && (
+            <Button onClick={() => setStep('preview')}>Continue to Preview</Button>
+          )}
+          {step === 'preview' && (
+            <div className="flex gap-3 w-full">
+              <Button variant="ghost" onClick={() => setStep('upload')}>Back</Button>
+              <Button className="flex-1" onClick={handleImport} disabled={isImporting}>
+                Import 24 Questions
+              </Button>
+            </div>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

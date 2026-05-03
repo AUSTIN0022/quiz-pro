@@ -1,215 +1,298 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { useQuizStore } from '@/lib/stores/quiz-store';
+import { useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { type Socket } from 'socket.io-client';
+import { WS } from '@/lib/constants/WS_EVENTS';
+import { getSocket, connectSocket, getDeviceId } from '@/lib/ws-client';
+import {
+  useQuizStore,
+  type SessionNewPayload,
+  type SessionRestoredPayload,
+  type QuizSubmittedPayload,
+} from '@/lib/stores/quiz-store';
+import questionsData from '@/seed/questions.json';
 
-interface QuizSocketCallbacks {
-  onSessionNew?: (data: any) => void;
-  onSessionRestored?: (data: any) => void;
-  onAnswerSaved?: (data: { questionIndex: number; status: string }) => void;
-  onTimerSync?: (data: { timeRemaining: number }) => void;
-  onAutoSubmitWarning?: () => void;
-  onQuizSubmitted?: () => void;
-  onProctorWarning?: (data: any) => void;
-  onAdminBroadcast?: (data: any) => void;
-  onSessionClosed?: () => void;
+// ============================================
+// Seed mode flag
+// ============================================
+const USE_SEED_WS = process.env.NEXT_PUBLIC_USE_SEED_WS === 'true' || true; // default true for dev
+
+// ============================================
+// Server→Client payload types
+// ============================================
+
+interface AnswerSavedPayload {
+  questionIndex: number;
+  status: 'saved' | 'error';
 }
 
-export type WSStatus = 'connected' | 'reconnecting' | 'disconnected';
+interface TimerSyncPayload {
+  timeRemaining: number;
+}
+
+interface AutoSubmitWarningPayload {
+  secondsLeft: number;
+}
+
+interface ProctorWarningAckPayload {
+  warningType: string;
+  acknowledged: boolean;
+  totalWarnings: number;
+}
+
+// ============================================
+// Hook
+// ============================================
 
 export function useQuizSocket(
   contestId: string,
   participantId: string,
-  sessionToken: string,
-  deviceId: string,
-  callbacks?: Partial<QuizSocketCallbacks>
+  sessionToken: string
 ) {
+  const router = useRouter();
   const socketRef = useRef<Socket | null>(null);
-  const [wsStatus, setWsStatus] = useState<WSStatus>('disconnected');
-  const quizStore = useQuizStore();
-  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const seedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const store = useQuizStore;
 
+  // ─── SEED MODE ────────────────────────────────
   useEffect(() => {
-    // Initialize socket connection
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001', {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 30000,
-      reconnectionAttempts: Infinity,
-    });
+    if (!USE_SEED_WS) return;
 
+    const seedTimer = setTimeout(() => {
+      const storeState = store.getState();
+
+      if (storeState.sessionId && storeState.questions.length > 0) {
+        // SESSION_RESTORED
+        store.getState().setQuizState('ACTIVE');
+        store.getState().setWsStatus('connected');
+      } else {
+        // SESSION_NEW
+        const seedQuestions = (questionsData as Record<string, unknown>[]).map((q, i) => ({
+          id: (q.id as string) || `q-${i}`,
+          index: i,
+          text: (q.text as string) || `Question ${i + 1}`,
+          options: ((q.options as { id: string; text: string }[]) || []).map((o, oi) => ({
+            index: oi,
+            text: o.text,
+          })),
+          difficulty: (q.difficulty as 'easy' | 'medium' | 'hard') || 'medium',
+          hint: undefined,
+          marks: (q.marks as number) || 4,
+          negativeMarks: (q.negativeMarks as number) || 1,
+        }));
+
+        const payload: SessionNewPayload = {
+          sessionId: `seed-session-${Date.now()}`,
+          questions: seedQuestions,
+          timeRemaining: 90 * 60,
+          totalQuestions: seedQuestions.length,
+        };
+
+        store.getState().setQuestions(payload.questions);
+        store.getState().setTimeRemaining(payload.timeRemaining);
+        store.getState().setSessionId(payload.sessionId);
+        store.getState().setQuizState('ACTIVE');
+        store.getState().setWsStatus('connected');
+      }
+    }, 200);
+
+    // Timer decrement every second
+    seedTimerRef.current = setInterval(() => {
+      store.getState().decrementTimer();
+      const remaining = store.getState().timeRemaining;
+
+      if (remaining === 30) {
+        window.dispatchEvent(new CustomEvent('auto-submit-warning', { detail: 30 }));
+      }
+
+      if (remaining <= 0) {
+        store.getState().setQuizState('SUBMITTING');
+        setTimeout(() => {
+          store.getState().setQuizState('SUBMITTED');
+          store.getState().setSubmissionId(`sub-seed-${Date.now()}`);
+        }, 300);
+      }
+    }, 1000);
+
+    return () => {
+      clearTimeout(seedTimer);
+      if (seedTimerRef.current) clearInterval(seedTimerRef.current);
+    };
+  }, [contestId, participantId, sessionToken, store]);
+
+  // ─── REAL WS MODE ─────────────────────────────
+  useEffect(() => {
+    if (USE_SEED_WS) return;
+
+    const socket = getSocket();
     socketRef.current = socket;
+    connectSocket(sessionToken);
 
-    // Connect event
     socket.on('connect', () => {
-      console.log('[v0] Quiz WebSocket connected');
-      setWsStatus('connected');
-
-      // Join quiz
-      socket.emit('JOIN_QUIZ', {
+      store.getState().setWsStatus('connected');
+      socket.emit(WS.JOIN_QUIZ, {
         contestId,
         participantId,
-        deviceId,
+        deviceId: getDeviceId(),
         sessionToken,
-        timestamp: new Date().toISOString(),
       });
-
-      // Start ping interval
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       pingIntervalRef.current = setInterval(() => {
-        socket.emit('PING', {
-          timestamp: new Date().toISOString(),
-        });
+        socket.emit(WS.PING, { timestamp: Date.now() });
       }, 30000);
     });
 
-    // Disconnect event
     socket.on('disconnect', () => {
-      console.log('[v0] Quiz WebSocket disconnected');
-      setWsStatus('disconnected');
+      store.getState().setWsStatus('disconnected');
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
     });
 
-    // Reconnecting event
-    socket.on('reconnect_attempt', () => {
-      console.log('[v0] Quiz WebSocket reconnecting...');
-      setWsStatus('reconnecting');
+    socket.io.on('reconnect_attempt', () => {
+      store.getState().setWsStatus('reconnecting');
     });
 
-    // Session new (fresh quiz)
-    socket.on('SESSION_NEW', (data: any) => {
-      console.log('[v0] New quiz session');
-      quizStore.setQuestions(data.questions);
-      quizStore.setTimeRemaining(data.timeRemaining);
-      callbacks?.onSessionNew?.(data);
+    socket.on(WS.SESSION_NEW, (data: SessionNewPayload) => {
+      store.getState().setQuestions(data.questions);
+      store.getState().setTimeRemaining(data.timeRemaining);
+      store.getState().setSessionId(data.sessionId);
+      store.getState().setQuizState('ACTIVE');
     });
 
-    // Session restored (resume)
-    socket.on('SESSION_RESTORED', (data: any) => {
-      console.log('[v0] Session restored');
-      quizStore.hydrateFromSession(data);
-      callbacks?.onSessionRestored?.(data);
+    socket.on(WS.SESSION_RESTORED, (data: SessionRestoredPayload) => {
+      store.getState().hydrateFromSession(data);
+      const nextQ = findNextUnanswered(data.answers, data.resumeFromIndex, data.totalQuestions);
+      store.getState().setCurrentQuestion(nextQ);
+      store.getState().setQuizState('ACTIVE');
     });
 
-    // Answer saved
-    socket.on('ANSWER_SAVED', (data: { questionIndex: number; status: string }) => {
-      console.log('[v0] Answer saved for question', data.questionIndex);
-      callbacks?.onAnswerSaved?.(data);
+    socket.on(WS.SESSION_CLOSED, () => {
+      store.getState().setQuizState('IDLE');
+      router.push(`/quiz/${contestId}/conflict`);
     });
 
-    // Timer sync (prevent drift)
-    socket.on('TIMER_SYNC', (data: { timeRemaining: number }) => {
-      quizStore.setTimeRemaining(data.timeRemaining);
-      callbacks?.onTimerSync?.(data);
+    socket.on(WS.ANSWER_SAVED, (data: AnswerSavedPayload) => {
+      if (data.status === 'saved') {
+        window.dispatchEvent(new CustomEvent('answer-confirmed', { detail: data.questionIndex }));
+      } else {
+        const answer = store.getState().answers[data.questionIndex];
+        if (answer !== undefined) {
+          socket.emit(WS.ANSWER_QUESTION, {
+            questionIndex: data.questionIndex,
+            optionIndex: answer,
+            contestId,
+            participantId,
+          });
+        }
+      }
     });
 
-    // Auto-submit warning
-    socket.on('AUTO_SUBMIT_WARNING', () => {
-      console.log('[v0] Auto-submit warning');
-      callbacks?.onAutoSubmitWarning?.();
+    socket.on(WS.TIMER_SYNC, (data: TimerSyncPayload) => {
+      store.getState().setTimeRemaining(data.timeRemaining);
     });
 
-    // Quiz submitted
-    socket.on('QUIZ_SUBMITTED', () => {
-      console.log('[v0] Quiz submitted successfully');
-      quizStore.setQuizState('SUBMITTED');
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-      callbacks?.onQuizSubmitted?.();
+    socket.on(WS.AUTO_SUBMIT_WARNING, (data: AutoSubmitWarningPayload) => {
+      window.dispatchEvent(new CustomEvent('auto-submit-warning', { detail: data.secondsLeft }));
     });
 
-    // Proctor warning
-    socket.on('PROCTOR_WARNING', (data: any) => {
-      console.log('[v0] Proctor warning:', data);
-      callbacks?.onProctorWarning?.(data);
+    socket.on(WS.QUIZ_SUBMITTED, (data: QuizSubmittedPayload) => {
+      store.getState().setQuizState('SUBMITTED');
+      store.getState().setSubmissionId(data.submissionId);
+      router.push(`/quiz/${contestId}/submitted`);
     });
 
-    // Admin broadcast
-    socket.on('ADMIN_BROADCAST', (data: any) => {
-      console.log('[v0] Admin broadcast:', data);
-      callbacks?.onAdminBroadcast?.(data);
-    });
-
-    // Session closed (multi-device conflict)
-    socket.on('SESSION_CLOSED', () => {
-      console.log('[v0] Session closed on another device');
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-      callbacks?.onSessionClosed?.();
-    });
-
-    // Pong response
-    socket.on('PONG', (data: { timestamp: string }) => {
-      const latency = Date.now() - new Date(data.timestamp).getTime();
-      console.log(`[v0] Quiz WebSocket latency: ${latency}ms`);
-    });
-
-    // Connection error
-    socket.on('connect_error', (error) => {
-      console.error('[v0] Quiz WebSocket error:', error);
-      setWsStatus('disconnected');
+    socket.on(WS.PROCTOR_WARNING_ACK, (data: ProctorWarningAckPayload) => {
+      window.dispatchEvent(new CustomEvent('proctor-warning-from-server', { detail: data }));
     });
 
     return () => {
+      socket.off(WS.SESSION_NEW);
+      socket.off(WS.SESSION_RESTORED);
+      socket.off(WS.SESSION_CLOSED);
+      socket.off(WS.ANSWER_SAVED);
+      socket.off(WS.TIMER_SYNC);
+      socket.off(WS.AUTO_SUBMIT_WARNING);
+      socket.off(WS.QUIZ_SUBMITTED);
+      socket.off(WS.PROCTOR_WARNING_ACK);
+      socket.off('connect');
+      socket.off('disconnect');
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-      socket.disconnect();
     };
-  }, [contestId, participantId, sessionToken, deviceId, quizStore, callbacks]);
+  }, [contestId, participantId, sessionToken, router, store]);
 
-  // Emit answer question
-  const emitAnswer = (questionIndex: number, optionIndex: number) => {
-    if (socketRef.current) {
-      socketRef.current.emit('ANSWER_QUESTION', {
-        contestId,
-        participantId,
-        questionIndex,
-        optionIndex,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  };
+  // ═══════════════════════════════════════════════
+  // TYPED EMIT FUNCTIONS
+  // ═══════════════════════════════════════════════
 
-  // Emit navigate question
-  const emitNavigate = (questionIndex: number) => {
-    if (socketRef.current) {
-      socketRef.current.emit('NAVIGATE_QUESTION', {
-        contestId,
-        participantId,
-        questionIndex,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  };
+  const emitAnswer = useCallback(
+    (questionIndex: number, optionIndex: number) => {
+      if (USE_SEED_WS) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('answer-confirmed', { detail: questionIndex }));
+        }, 50);
+        return;
+      }
+      socketRef.current?.emit(WS.ANSWER_QUESTION, { questionIndex, optionIndex, contestId, participantId });
+    },
+    [contestId, participantId]
+  );
 
-  // Emit submit quiz
-  const emitSubmit = (source: 'MANUAL' | 'AUTO' = 'MANUAL') => {
-    if (socketRef.current) {
-      socketRef.current.emit('SUBMIT_QUIZ', {
+  const emitFlag = useCallback(
+    (questionIndex: number, flagged: boolean) => {
+      if (USE_SEED_WS) return;
+      socketRef.current?.emit(WS.FLAG_QUESTION, { questionIndex, flagged, contestId, participantId });
+    },
+    [contestId, participantId]
+  );
+
+  const emitSubmit = useCallback(
+    (source: 'MANUAL' | 'AUTO') => {
+      store.getState().setQuizState('SUBMITTING');
+      if (USE_SEED_WS) {
+        setTimeout(() => {
+          store.getState().setQuizState('SUBMITTED');
+          store.getState().setSubmissionId(`sub-seed-${Date.now()}`);
+          router.push(`/quiz/${contestId}/submitted`);
+        }, 300);
+        return;
+      }
+      socketRef.current?.emit(WS.SUBMIT_QUIZ, {
         contestId,
         participantId,
         source,
-        timestamp: new Date().toISOString(),
+        answers: store.getState().answers,
       });
-    }
-  };
+    },
+    [contestId, participantId, router, store]
+  );
 
-  // Emit proctor warning
-  const emitProctorWarning = (type: string) => {
-    if (socketRef.current) {
-      socketRef.current.emit('PROCTOR_WARNING', {
+  const emitProctoringWarning = useCallback(
+    (warningType: string) => {
+      if (USE_SEED_WS) return;
+      socketRef.current?.emit(WS.PROCTOR_WARNING, {
+        warningType,
         contestId,
         participantId,
-        type,
-        timestamp: new Date().toISOString(),
+        timestamp: Date.now(),
       });
-    }
-  };
+    },
+    [contestId, participantId]
+  );
 
-  return {
-    socket: socketRef.current,
-    wsStatus,
-    emitAnswer,
-    emitNavigate,
-    emitSubmit,
-    emitProctorWarning,
-  };
+  return { emitAnswer, emitFlag, emitSubmit, emitProctoringWarning };
+}
+
+// ═══════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════
+
+function findNextUnanswered(
+  answers: Record<number, number>,
+  resumeFromIndex: number,
+  total: number
+): number {
+  for (let i = resumeFromIndex; i < total; i++) {
+    if (answers[i] === undefined) return i;
+  }
+  return Math.max(0, total - 1);
 }

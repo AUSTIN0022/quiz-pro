@@ -3,13 +3,19 @@ import io, { type Socket } from 'socket.io-client';
 
 export interface LiveParticipant {
   participantId: string;
-  participantName: string;
+  name: string;
+  avatarInitials: string;
   currentQuestion: number;
+  answeredCount: number;
   totalQuestions: number;
-  timeOnQuestion: number;
-  status: 'active' | 'submitted' | 'flagged' | 'disconnected';
+  estimatedCorrect: number;
+  estimatedScorePercent: number;
+  timeRemainingSeconds: number;
+  status: 'active' | 'submitted' | 'disconnected' | 'flagged';
   proctoringAlerts: number;
-  lastUpdated: string;
+  lastActivityAt: string;
+  isInWaitingRoom: boolean;
+  timeOnQuestion: number; // For "On Q{n} for {Xm Ys}"
 }
 
 export interface BroadcastMessage {
@@ -21,11 +27,23 @@ export interface BroadcastMessage {
   sentBy: string;
 }
 
+export interface ProctorAlert {
+  participantId: string;
+  name: string;
+  type: 'tab-switch' | 'camera-off' | 'no-face' | 'multiple-faces' | 'fullscreen-exit' | 'copy-paste';
+  warningCount: number;
+  maxWarnings: number;
+  questionContext: string;
+  timestamp: string;
+  autoSubmitted?: boolean;
+}
+
 export function useAdminContestSocket(
   contestId: string,
   adminId: string,
   onParticipantUpdate?: (participant: LiveParticipant) => void,
-  onBroadcastMessage?: (message: BroadcastMessage) => void
+  onBroadcastMessage?: (message: BroadcastMessage) => void,
+  onProctorAlert?: (alert: ProctorAlert) => void
 ) {
   const socketRef = useRef<Socket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -93,6 +111,12 @@ export function useAdminContestSocket(
       }
     });
 
+    socket.on('PROCTOR_ALERT', (alert: ProctorAlert) => {
+      if (onProctorAlert) {
+        onProctorAlert(alert);
+      }
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -117,13 +141,19 @@ export function useAdminContestSocket(
 
   const getParticipantStats = useCallback(() => {
     return {
-      total: participants.length,
-      active: participants.filter(p => p.status === 'active').length,
+      totalJoined: participants.length,
+      activeNow: participants.filter(p => p.status === 'active').length,
       submitted: participants.filter(p => p.status === 'submitted').length,
       flagged: participants.filter(p => p.status === 'flagged').length,
+      inWaitingRoom: participants.filter(p => p.isInWaitingRoom).length,
       disconnected: participants.filter(p => p.status === 'disconnected').length
     };
   }, [participants]);
+
+  const forceSubmitParticipant = useCallback((participantId: string) => {
+    if (!socketRef.current?.connected) return;
+    socketRef.current.emit('FORCE_SUBMIT_PARTICIPANT', { participantId, adminId });
+  }, [adminId]);
 
   return {
     connected,
@@ -131,6 +161,7 @@ export function useAdminContestSocket(
     messages,
     error,
     sendBroadcast,
-    getParticipantStats
+    getParticipantStats,
+    forceSubmitParticipant
   };
 }

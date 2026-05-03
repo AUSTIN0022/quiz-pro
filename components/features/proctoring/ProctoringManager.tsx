@@ -1,94 +1,120 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { toast } from 'sonner';
 import { useProctoringStore } from '@/lib/stores/proctoring-store';
+import { useFaceDetection } from '@/lib/proctoring/useFaceDetection';
+
+// ═══════════════════════════════════════════════════════
+// ProctoringManager — Side-effect component
+// ═══════════════════════════════════════════════════════
 
 interface ProctoringManagerProps {
-  onTabSwitch?: () => void;
-  onFullscreenExit?: () => void;
+  emitProctoringWarning: (type: string) => void;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
-/**
- * ProctoringManager
- * Monitors for proctoring violations (tab switches, fullscreen exits, copy/paste)
- * Returns null for UI - it's purely a monitoring component
- */
 export function ProctoringManager({
-  onTabSwitch,
-  onFullscreenExit,
+  emitProctoringWarning,
+  videoRef,
 }: ProctoringManagerProps) {
-  const proctoringStore = useProctoringStore();
+  const [showFullscreenRequest, setShowFullscreenRequest] = useState(false);
+  const store = useProctoringStore();
 
-  // Monitor visibility changes (tab switches)
+  // 1. REQUEST + ENFORCE FULLSCREEN
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        console.log('[v0] Tab switched away - recording violation');
-        proctoringStore.recordTabSwitch();
-        onTabSwitch?.();
+    const requestFullscreen = async () => {
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+          store.setFullscreen(true);
+        }
+      } catch {
+        setShowFullscreenRequest(true);
       }
     };
+    
+    // Attempt fullscreen on mount
+    requestFullscreen();
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [proctoringStore, onTabSwitch]);
-
-  // Monitor fullscreen changes
-  useEffect(() => {
     const handleFullscreenChange = () => {
       const isCurrentlyFullscreen = !!document.fullscreenElement;
-
-      if (!isCurrentlyFullscreen && proctoringStore.isFullscreen) {
-        console.log('[v0] Exited fullscreen - recording violation');
-        proctoringStore.recordFullscreenExit();
-        onFullscreenExit?.();
+      if (!isCurrentlyFullscreen && store.isFullscreen) {
+        store.addWarning({ type: 'FULLSCREEN_EXIT', timestamp: Date.now() });
+        emitProctoringWarning('FULLSCREEN_EXIT');
       }
-
-      proctoringStore.setFullscreen(isCurrentlyFullscreen);
+      store.setFullscreen(isCurrentlyFullscreen);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [emitProctoringWarning, store]);
 
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, [proctoringStore, onFullscreenExit]);
-
-  // Disable right-click
+  // 2. TAB SWITCH DETECTION
   useEffect(() => {
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-      return false;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        store.addWarning({ type: 'TAB_SWITCH', timestamp: Date.now() });
+        emitProctoringWarning('TAB_SWITCH');
+      }
     };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [emitProctoringWarning, store]);
 
-    document.addEventListener('contextmenu', handleContextMenu);
-
+  // 3. COPY / PASTE PREVENTION
+  useEffect(() => {
+    const prevent = (e: ClipboardEvent) => {
+      e.preventDefault();
+      toast.warning('Copy-paste is disabled during this quiz');
+    };
+    document.addEventListener('copy', prevent);
+    document.addEventListener('cut', prevent);
+    document.addEventListener('paste', prevent);
     return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('copy', prevent);
+      document.removeEventListener('cut', prevent);
+      document.removeEventListener('paste', prevent);
     };
   }, []);
 
-  // Disable copy, cut, paste
+  // 4. RIGHT-CLICK PREVENTION
   useEffect(() => {
-    const handleCopyPaste = (e: ClipboardEvent) => {
-      e.preventDefault();
-      return false;
-    };
-
-    ['copy', 'cut', 'paste'].forEach((eventType) => {
-      document.addEventListener(eventType, handleCopyPaste as EventListener);
-    });
-
-    return () => {
-      ['copy', 'cut', 'paste'].forEach((eventType) => {
-        document.removeEventListener(eventType, handleCopyPaste as EventListener);
-      });
-    };
+    const prevent = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener('contextmenu', prevent);
+    return () => document.removeEventListener('contextmenu', prevent);
   }, []);
 
-  // This component doesn't render anything
+  // 5. KEYBOARD SHORTCUTS PREVENTION
+  useEffect(() => {
+    const prevent = (e: KeyboardEvent) => {
+      // Block: Ctrl+C, Ctrl+V, Ctrl+U (view source), F12 (devtools), Ctrl+Shift+I, Ctrl+A
+      const key = e.key.toLowerCase();
+      if (
+        (e.ctrlKey && ['c', 'v', 'u', 'a'].includes(key)) ||
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && key === 'i')
+      ) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('keydown', prevent);
+    return () => document.removeEventListener('keydown', prevent);
+  }, []);
+
+  // 6. FACE DETECTION
+  // We wrap the emit to match the expected signature in useFaceDetection
+  const wrappedEmit = (event: string, data: Record<string, unknown>) => {
+    if (event === 'PROCTOR_WARNING' && typeof data.warningType === 'string') {
+      emitProctoringWarning(data.warningType);
+    }
+  };
+
+  useFaceDetection({ 
+    videoRef, 
+    active: true, 
+    wsEmit: wrappedEmit 
+  });
+
   return null;
 }

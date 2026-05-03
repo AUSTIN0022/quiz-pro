@@ -16,14 +16,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { contestService } from "@/lib/services/contest-service";
 import { registrationService } from "@/lib/services/registration-service";
-import type { Contest, ContestRegistrationField } from "@/lib/types";
+import type { Contest, RegistrationField } from "@/lib/types";
 
 const baseSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
   phone: z.string().min(10, "Phone number must be at least 10 digits"),
-  termsAccepted: z.literal(true, {
-    errorMap: () => ({ message: "You must accept the terms and conditions" }),
+  termsAccepted: z.boolean().refine(val => val === true, {
+    message: "You must accept the terms and conditions",
   }),
 });
 
@@ -38,20 +38,24 @@ export default function RegisterPage() {
   const [step, setStep] = useState<"form" | "payment" | "success">("form");
   const [registrationId, setRegistrationId] = useState<string | null>(null);
 
-  const form = useForm({
+  const form = useForm<z.infer<typeof baseSchema>>({
     resolver: zodResolver(baseSchema),
     defaultValues: {
       fullName: "",
       email: "",
       phone: "",
-      termsAccepted: false as boolean,
+      termsAccepted: false,
     },
   });
 
   useEffect(() => {
     const loadContest = async () => {
-      const data = await contestService.getContestBySlug(slug);
-      setContest(data);
+      const response = await contestService.getContestBySlug(slug);
+      if (response.success && response.data) {
+        setContest(response.data);
+      } else {
+        setContest(null);
+      }
       setLoading(false);
     };
     loadContest();
@@ -65,7 +69,7 @@ export default function RegisterPage() {
     // Simulate form processing
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    if (contest.entryFee > 0) {
+    if (contest.fee > 0) {
       // Move to payment step
       setStep("payment");
       setSubmitting(false);
@@ -80,15 +84,21 @@ export default function RegisterPage() {
 
     setSubmitting(true);
 
-    const result = await registrationService.createRegistration({
-      contestId: contest.id,
-      participantName: formData.fullName,
-      participantEmail: formData.email,
+    const response = await registrationService.createRegistration(contest.id, {
+      fullName: formData.fullName,
+      email: formData.email,
       phone: formData.phone,
+      country: 'India', // Default or could be added to form
+      agreeToTerms: true
     });
 
-    setRegistrationId(result.id);
-    setStep("success");
+    if (response.success && response.data) {
+      setRegistrationId(response.data.participantId);
+      setStep("success");
+    } else {
+      // Handle error
+      alert(response.error || "Registration failed");
+    }
     setSubmitting(false);
   };
 
@@ -96,7 +106,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     // Simulate payment processing
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    await completeRegistration(form.getValues());
+    await completeRegistration(form.getValues() as z.infer<typeof baseSchema>);
   };
 
   if (loading) {
@@ -132,11 +142,11 @@ export default function RegisterPage() {
 
         {/* Progress Steps */}
         <div className="flex items-center justify-center gap-4 mb-8">
-          {["Details", contest.entryFee > 0 ? "Payment" : null, "Confirmation"]
+          {["Details", contest.fee > 0 ? "Payment" : null, "Confirmation"]
             .filter(Boolean)
             .map((label, index) => {
               const stepIndex =
-                step === "form" ? 0 : step === "payment" ? 1 : contest.entryFee > 0 ? 2 : 1;
+                step === "form" ? 0 : step === "payment" ? 1 : contest.fee > 0 ? 2 : 1;
               const isActive = index === stepIndex;
               const isCompleted = index < stepIndex;
 
@@ -157,7 +167,7 @@ export default function RegisterPage() {
                   >
                     {label}
                   </span>
-                  {index < (contest.entryFee > 0 ? 2 : 1) && (
+                  {index < (contest.fee > 0 ? 2 : 1) && (
                     <div className="w-12 h-0.5 bg-muted mx-2" />
                   )}
                 </div>
@@ -227,8 +237,8 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Dynamic Fields from Contest */}
-                    {contest.registrationFields?.map((field: ContestRegistrationField) => (
-                      <DynamicField key={field.name} field={field} form={form} />
+                    {contest.registrationFields?.map((field: RegistrationField) => (
+                      <DynamicField key={field.id} field={field} form={form} />
                     ))}
                   </div>
 
@@ -264,8 +274,8 @@ export default function RegisterPage() {
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Entry Fee</span>
                       <span className="font-semibold text-foreground">
-                        {contest.entryFee > 0
-                          ? `${contest.currency} ${contest.entryFee.toFixed(2)}`
+                        {contest.fee > 0
+                          ? `${contest.currency} ${contest.fee.toFixed(2)}`
                           : "Free"}
                       </span>
                     </div>
@@ -277,7 +287,7 @@ export default function RegisterPage() {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Processing...
                       </>
-                    ) : contest.entryFee > 0 ? (
+                    ) : contest.fee > 0 ? (
                       "Continue to Payment"
                     ) : (
                       "Complete Registration"
@@ -313,13 +323,13 @@ export default function RegisterPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{contest.title}</span>
                     <span className="text-foreground">
-                      {contest.currency} {contest.entryFee.toFixed(2)}
+                      {contest.currency} {contest.fee.toFixed(2)}
                     </span>
                   </div>
                   <div className="border-t pt-3 flex justify-between font-semibold">
                     <span>Total</span>
                     <span className="text-primary">
-                      {contest.currency} {contest.entryFee.toFixed(2)}
+                      {contest.currency} {contest.fee.toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -366,7 +376,7 @@ export default function RegisterPage() {
                         Processing Payment...
                       </>
                     ) : (
-                      `Pay ${contest.currency} ${contest.entryFee.toFixed(2)}`
+                      `Pay ${contest.currency} ${contest.fee.toFixed(2)}`
                     )}
                   </Button>
                 </div>
@@ -428,7 +438,7 @@ export default function RegisterPage() {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Contest Date</span>
                       <span className="text-foreground">
-                        {new Date(contest.startDate).toLocaleDateString("en-US", {
+                        {new Date(contest.contestDate).toLocaleDateString("en-US", {
                           weekday: "long",
                           year: "numeric",
                           month: "long",
@@ -474,10 +484,10 @@ function DynamicField({
   field,
   form,
 }: {
-  field: ContestRegistrationField;
-  form: ReturnType<typeof useForm>;
+  field: RegistrationField;
+  form: any;
 }) {
-  const fieldName = field.name;
+  const fieldName = field.id;
 
   switch (field.type) {
     case "text":

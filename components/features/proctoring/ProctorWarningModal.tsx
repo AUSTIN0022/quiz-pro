@@ -1,8 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertCircle, AlertTriangle, Eye } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertTriangle, Users, AlertCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useProctoringStore } from '@/lib/stores/proctoring-store';
+
+// ═══════════════════════════════════════════════════════
+// ProctorWarningModal — High-stakes violation modal
+// ═══════════════════════════════════════════════════════
 
 export type WarningType = 'TAB_SWITCH' | 'FULLSCREEN_EXIT' | 'MULTIPLE_FACES' | 'NO_FACE';
 
@@ -23,117 +29,141 @@ export function ProctorWarningModal({
   onDismiss,
   onReturnFullscreen,
 }: ProctorWarningModalProps) {
-  if (!open) return null;
+  
+  const isFlagged = (warningCount || 0) >= maxWarnings;
 
-  const isNonDismissible =
-    type === 'FULLSCREEN_EXIT' || type === 'MULTIPLE_FACES';
+  if (type === 'NO_FACE') {
+    return <NoFaceBanner onDismiss={onDismiss} />;
+  }
 
+  // Variants by type
   const getContent = () => {
     switch (type) {
       case 'TAB_SWITCH':
         return {
-          icon: AlertCircle,
-          title: 'You left the exam window',
-          message: `Warning ${warningCount}/${maxWarnings}. You will be disqualified after ${maxWarnings} warnings.`,
-          description: 'Please return to the exam and avoid switching tabs.',
+          icon: AlertTriangle,
+          title: 'You Left the Quiz Window',
+          body: 'Navigating away from the quiz is not allowed.',
+          color: 'amber',
         };
-
-      case 'FULLSCREEN_EXIT':
-        return {
-          icon: Eye,
-          title: 'Return to fullscreen to continue',
-          message: 'The exam must be in fullscreen mode.',
-          description: 'Click the button below to restore fullscreen mode.',
-        };
-
       case 'MULTIPLE_FACES':
         return {
-          icon: AlertTriangle,
-          title: 'Multiple faces detected',
-          message: 'Your session has been flagged for review.',
-          description: 'Only one person should be taking this exam.',
+          icon: Users,
+          title: 'Multiple Faces Detected',
+          body: 'Only you should be visible during the quiz. This incident has been recorded.',
+          color: 'red',
         };
-
-      case 'NO_FACE':
-        return {
-          icon: AlertTriangle,
-          title: 'Face not detected',
-          message: 'Please ensure your face is visible in the camera.',
-          description: 'Adjust your position and ensure adequate lighting.',
-        };
-
       default:
         return {
           icon: AlertCircle,
-          title: 'Proctoring violation detected',
-          message: 'Your session has been flagged.',
-          description: '',
+          title: 'Proctoring Violation',
+          body: 'An unusual activity was detected and recorded.',
+          color: 'amber',
         };
     }
   };
 
   const content = getContent();
-  const IconComponent = content.icon;
+  const Icon = content.icon;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40"
-        onClick={() => !isNonDismissible && onDismiss()}
-      />
+    <DialogOverlay open={open}>
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className={`
+          bg-slate-900 border-2 rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl
+          ${content.color === 'amber' ? 'border-amber-500/30 shadow-amber-500/10' : 'border-red-500/30 shadow-red-500/10'}
+        `}
+      >
+        <div className={`
+          w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6
+          ${content.color === 'amber' ? 'bg-amber-500/10' : 'bg-red-500/10'}
+        `}>
+          <Icon className={`w-8 h-8 ${content.color === 'amber' ? 'text-amber-500' : 'text-red-500'} ${type === 'TAB_SWITCH' ? 'animate-pulse' : ''}`} />
+        </div>
 
-      {/* Modal */}
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm">
-        <div className="bg-surface border border-border rounded-lg p-6 shadow-xl space-y-4">
-          {/* Icon */}
-          <div className="flex justify-center">
-            <div className="p-3 rounded-full bg-red-500/10">
-              <IconComponent className="w-6 h-6 text-red-500" />
-            </div>
-          </div>
+        <h3 className="text-xl font-bold text-white mb-2">{content.title}</h3>
+        <p className="text-sm text-white/60 mb-6 leading-relaxed">{content.body}</p>
 
-          {/* Title */}
-          <h2 className="text-center text-lg font-bold text-foreground">
-            {content.title}
-          </h2>
-
-          {/* Message */}
-          <p className="text-center text-sm text-muted-foreground">
-            {content.message}
+        <div className="mb-8">
+          <p className={`text-xs font-bold uppercase tracking-widest ${isFlagged ? 'text-red-500' : 'text-white/40'}`}>
+            Warning {warningCount} of {maxWarnings}
           </p>
-
-          {/* Description */}
-          {content.description && (
-            <p className="text-center text-xs text-muted-foreground">
-              {content.description}
+          {isFlagged && (
+            <p className="text-xs text-red-500 mt-1 font-medium">
+              Your session has been flagged for review.
             </p>
           )}
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            {type === 'FULLSCREEN_EXIT' ? (
-              <Button
-                onClick={() => {
-                  onReturnFullscreen?.();
-                  onDismiss();
-                }}
-                className="w-full"
-              >
-                Return to Fullscreen
-              </Button>
-            ) : isNonDismissible ? (
-              <Button onClick={onDismiss} variant="outline" className="w-full">
-                I Understand
-              </Button>
-            ) : (
-              <Button onClick={onDismiss} className="w-full">
-                Return to Quiz
-              </Button>
-            )}
-          </div>
         </div>
+
+        <Button
+          onClick={onDismiss}
+          className={`
+            w-full py-6 font-semibold rounded-xl
+            ${content.color === 'amber' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-500 hover:bg-red-600'}
+          `}
+        >
+          I understand, return to quiz
+        </Button>
+      </motion.div>
+    </DialogOverlay>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// NoFaceBanner — Non-blocking bottom banner
+// ═══════════════════════════════════════════════════════
+
+function NoFaceBanner({ onDismiss }: { onDismiss: () => void }) {
+  const [visible, setVisible] = useState(true);
+
+  if (!visible) return null;
+
+  return (
+    <motion.div
+      initial={{ y: 100 }}
+      animate={{ y: 0 }}
+      exit={{ y: 100 }}
+      className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] w-full max-w-lg px-4"
+    >
+      <div className="bg-amber-500 text-slate-950 p-4 rounded-xl shadow-2xl flex items-center gap-4">
+        <AlertCircle className="w-6 h-6 shrink-0" />
+        <p className="text-sm font-semibold flex-1">
+          No face detected — please ensure your face is visible to the camera
+        </p>
+        <button 
+          onClick={() => { setVisible(false); onDismiss(); }}
+          className="p-1 hover:bg-black/10 rounded-lg transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
-    </>
+    </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// Shared Helper Components
+// ═══════════════════════════════════════════════════════
+
+function DialogOverlay({ children, open }: { children: React.ReactNode; open: boolean }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+      {children}
+    </div>
+  );
+}
+
+export function FlaggedBanner() {
+  const isFlagged = useProctoringStore((s) => s.isFlagged);
+  if (!isFlagged) return null;
+
+  return (
+    <div className="bg-red-500 text-white py-2 px-4 text-center text-xs font-bold uppercase tracking-wider sticky top-0 z-50">
+      ⚠ Your session has been flagged for review. An administrator will review your quiz session after submission.
+    </div>
   );
 }

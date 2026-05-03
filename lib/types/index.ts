@@ -6,29 +6,38 @@
 export type ContestStatus = 'draft' | 'published' | 'active' | 'completed' | 'cancelled';
 export type QuestionType = 'mcq' | 'msq' | 'fill' | 'trueFalse';
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
-export type RegistrationStatus = 'pending' | 'confirmed' | 'cancelled';
+export type RegistrationStatus = 'pending' | 'confirmed' | 'cancelled' | 'revoked';
 export type AttemptStatus = 'not_started' | 'in_progress' | 'submitted' | 'timed_out' | 'disqualified';
+export type ContestPhase = 'DRAFT' | 'PUBLISHED' | 'REGISTRATION_CLOSED' | 'LIVE' | 'ENDED' | 'RESULTS_PUBLISHED' | 'CANCELLED';
 
 // Contest & Questions
 export interface Contest {
   id: string;
   title: string;
   slug: string;
+  orgId: string;
+  orgSlug: string;
   description: string;
-  longDescription?: string;
+  shortDescription: string;
+  topic: string;
+  tags: string[];
   category: string;
   difficulty: DifficultyLevel;
   status: ContestStatus;
+  coverImage?: string;
   bannerImage?: string;
   thumbnailImage?: string;
   
   // Timing
+  startTime: string;
+  registrationDeadline: string;
   registrationStartDate: string;
   registrationEndDate: string;
   contestDate: string;
   contestStartTime: string;
   contestEndTime: string;
   durationMinutes: number;
+  timezone: string;
   
   // Configuration
   totalQuestions: number;
@@ -39,25 +48,50 @@ export interface Contest {
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
   allowBackNavigation: boolean;
-  
-  // Registration
-  registrationFee: number;
-  maxParticipants: number;
-  currentParticipants: number;
-  
-  // Proctoring
   proctoringEnabled: boolean;
   fullscreenRequired: boolean;
   webcamRequired: boolean;
   tabSwitchLimit: number;
+  allowedDevices?: ('mobile' | 'desktop' | 'tablet')[];
   
-  // Prizes
+  // Registration & Fees
+  fee: number;
+  currency: string;
+  registrationFee: number;
+  maxParticipants: number;
+  currentParticipants: number;
+  razorpayKeyId?: string;
+  
+  // Content
+  rules?: string[];
   prizes?: Prize[];
+  registrationFields?: RegistrationField[];
   
-  // Metadata
+  // Lifecycle
+  publishedAt: string | null;
+  cancelledAt: string | null;
+  resultsPublishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   organizerId: string;
+
+  // Stats
+  _counts: {
+    registered: number;
+    confirmed: number;
+    paid: number;
+    submitted: number;
+    questions?: number;
+  };
+}
+
+export interface RegistrationField {
+  id: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'email' | 'tel';
+  required: boolean;
+  options?: string[];
+  placeholder?: string;
 }
 
 export interface Prize {
@@ -79,6 +113,7 @@ export interface Question {
   marks: number;
   negativeMarks: number;
   explanation?: string;
+  hint?: string;
   difficulty: DifficultyLevel;
   tags?: string[];
 }
@@ -98,7 +133,22 @@ export interface Registration {
   registeredAt: string;
   paymentId?: string;
   paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded';
+  amount?: number;
+  paymentMethod?: string;
   participantDetails: ParticipantDetails;
+  
+  // Custom Fields & Opt-ins
+  whatsappOptIn?: boolean;
+  customFields?: Record<string, string>;
+  
+  // Quiz Status (for LIVE/ENDED)
+  quizStatus?: 'not_joined' | 'waiting' | 'answering' | 'submitted' | 'absent';
+  currentQuestionIndex?: number;
+  totalQuestions?: number;
+  joinedAt?: string;
+  submittedAt?: string;
+  lastActivityAt?: string;
+  proctoringWarnings?: Array<{ type: string; count: number }>;
 }
 
 export interface ParticipantDetails {

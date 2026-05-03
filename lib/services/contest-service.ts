@@ -5,7 +5,7 @@ import contestsData from '@/seed/contests.json';
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 class ContestService {
-  private contests: Contest[] = contestsData as Contest[];
+  private contests: Contest[] = contestsData as unknown as Contest[];
 
   async getContests(filters?: ContestFilters): Promise<ApiResponse<Contest[]>> {
     await delay(300);
@@ -42,9 +42,9 @@ class ContestService {
   async getContestBySlug(slug: string): Promise<ApiResponse<Contest>> {
     await delay(200);
     
-    const contest = this.contests.find(c => c.slug === slug);
+    const contestData = this.contests.find(c => c.slug === slug);
     
-    if (!contest) {
+    if (!contestData) {
       return {
         success: false,
         error: 'Contest not found'
@@ -53,26 +53,64 @@ class ContestService {
     
     return {
       success: true,
-      data: contest
+      data: this._transformContest(contestData)
     };
   }
 
   async getContestById(id: string): Promise<ApiResponse<Contest>> {
     await delay(200);
     
-    const contest = this.contests.find(c => c.id === id);
+    const contestData = this.contests.find(c => c.id === id);
     
-    if (!contest) {
+    if (!contestData) {
       return {
         success: false,
         error: 'Contest not found'
       };
     }
-    
+
     return {
       success: true,
-      data: contest
+      data: this._transformContest(contestData)
     };
+  }
+
+  private _transformContest(contestData: any): Contest {
+    return {
+      ...contestData,
+      orgId: contestData.organizerId || 'org-123',
+      orgSlug: 'quiz-pro', // Mock
+      shortDescription: contestData.description?.substring(0, 100) || '',
+      topic: contestData.category || '',
+      tags: contestData.tags || [contestData.category, contestData.difficulty].filter(Boolean),
+      coverImage: contestData.bannerImage,
+      startTime: contestData.contestDate && contestData.contestStartTime ? 
+        `${contestData.contestDate}T${contestData.contestStartTime}:00Z` : 
+        new Date().toISOString(),
+      registrationDeadline: contestData.registrationEndDate || new Date().toISOString(),
+      timezone: 'UTC',
+      fee: contestData.registrationFee || 0,
+      registrationFee: contestData.registrationFee || 0,
+      currency: 'INR',
+      publishedAt: contestData.status === 'published' || contestData.status === 'active' ? contestData.createdAt : null,
+      cancelledAt: contestData.status === 'cancelled' ? contestData.updatedAt : null,
+      resultsPublishedAt: contestData.status === 'completed' ? contestData.updatedAt : null,
+      duration: contestData.durationMinutes || 60,
+      rules: contestData.rules || [
+        "Maintain a stable internet connection throughout the contest.",
+        "Browser tab switching is monitored and limited.",
+        "Ensure your webcam is functional if required.",
+        "Submit your answers before the time expires."
+      ],
+      allowedDevices: contestData.allowedDevices || ["Desktop", "Laptop"],
+      razorpayKeyId: contestData.razorpayKeyId || "rzp_test_1234567890",
+      _counts: contestData._counts || {
+        registered: contestData.currentParticipants || 0,
+        confirmed: Math.floor((contestData.currentParticipants || 0) * 0.9),
+        paid: Math.floor((contestData.currentParticipants || 0) * 0.8),
+        submitted: contestData.status === 'completed' ? Math.floor((contestData.currentParticipants || 0) * 0.7) : 0,
+      }
+    } as Contest;
   }
 
   async getCategories(): Promise<ApiResponse<string[]>> {
