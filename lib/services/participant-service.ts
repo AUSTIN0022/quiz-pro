@@ -5,18 +5,26 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 class ParticipantService {
   private get profiles(): ParticipantProfile[] {
-    return MockDB.contacts.map((c, i) => ({
+    // Safely access contacts - fallback to empty array if undefined
+    const contacts = MockDB?.contacts || [];
+    
+    if (contacts.length === 0) {
+      // Return default profiles if no contacts available
+      return this._profiles;
+    }
+
+    return contacts.map((c, i) => ({
       id: `profile-${String(i + 1).padStart(3, '0')}`,
-      participantId: `PART-${c.id.split('-')[1]}`,
-      fullName: c.fullName,
-      email: c.email,
-      phone: c.phone,
+      participantId: `PART-${c?.id?.split('-')?.[1] || String(i + 1)}`,
+      fullName: c?.fullName || `Participant ${i + 1}`,
+      email: c?.email || `participant${i + 1}@example.com`,
+      phone: c?.phone || `+91 98000000${String(i + 1).padStart(2, '0')}`,
       notificationPreferences: {
         emailReminders: true,
         whatsappReminders: true,
         emailResults: true,
       },
-      createdAt: c.createdAt,
+      createdAt: c?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }));
   }
