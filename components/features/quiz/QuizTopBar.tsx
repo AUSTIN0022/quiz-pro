@@ -55,7 +55,7 @@ export function QuizTopBar({ contestTitle, onSubmitClick }: QuizTopBarProps) {
         <div className="flex items-center gap-4">
           <ProctoringStatusChip />
           
-          {videoStream && <CameraFeed stream={videoStream} variant="topbar" />}
+          {videoStream && <CameraFeed stream={videoStream} variant="topbar-large" />}
 
           <Button 
             onClick={onSubmitClick} 

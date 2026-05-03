@@ -8,7 +8,7 @@ import { ProctoringStatusChip } from './ProctoringStatusChip';
 
 interface CameraFeedProps {
   stream: MediaStream | null;
-  variant?: 'floating' | 'mini' | 'topbar';
+  variant?: 'floating' | 'mini' | 'topbar' | 'topbar-large';
   showStatus?: boolean;
   onExpand?: () => void;
 }
@@ -47,12 +47,14 @@ export function CameraFeed({
 
   const variantStyles: Record<string, string> = {
     topbar: 'w-20 h-[60px] rounded-md',
+    'topbar-large': 'w-28 h-20 rounded-lg',
     floating: 'w-[90px] h-[70px] rounded-lg',
     mini: 'w-[60px] h-[60px] rounded-full',
   };
 
   const containerStyles: Record<string, string> = {
     topbar: '',
+    'topbar-large': '',
     floating: 'fixed bottom-4 right-4 z-40',
     mini: 'fixed bottom-4 left-4 z-40',
   };
