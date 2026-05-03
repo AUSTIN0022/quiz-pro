@@ -12,21 +12,16 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFaceDetection } from '@/lib/proctoring/useFaceDetection';
+import { useProctoringStore } from '@/lib/stores/proctoring-store';
 import type { FaceDetectionEngine } from '@/lib/proctoring/FaceDetectionEngine';
 import type { DetectionResult } from '@/lib/proctoring/types';
 
 interface CameraCheckWidgetProps {
-  stream: MediaStream | null;
-  cameraStatus: 'idle' | 'requesting' | 'active' | 'denied' | 'error';
-  cameraError?: string | null;
   onProceed: () => void;
   onRetryCamera: () => void;
 }
 
 export function CameraCheckWidget({
-  stream,
-  cameraStatus,
-  cameraError,
   onProceed,
   onRetryCamera,
 }: CameraCheckWidgetProps) {
@@ -37,6 +32,10 @@ export function CameraCheckWidget({
   const [latestResult, setLatestResult] = useState<DetectionResult | null>(null);
   const detectionIntervalRef = useRef<number | null>(null);
 
+  // Get camera state from store
+  const videoStream = useProctoringStore((s) => s.videoStream);
+  const cameraStatus = useProctoringStore((s) => s.cameraStatus);
+
   const { faceDetected, faceCount, lightingOk, isInitialized } = useFaceDetection({
     videoRef,
     active: cameraStatus === 'active' && engineReady,
@@ -44,16 +43,11 @@ export function CameraCheckWidget({
 
   // Attach stream to video element
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
+    if (videoRef.current && videoStream) {
+      videoRef.current.srcObject = videoStream;
       videoRef.current.play().catch(() => {});
     }
-    return () => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-    };
-  }, [stream]);
+  }, [videoStream]);
 
   // Lazy-load face detection engine
   useEffect(() => {

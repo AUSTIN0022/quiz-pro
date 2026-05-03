@@ -216,7 +216,7 @@ export default function LiveQuizPage() {
       {/* ─── Main Quiz Area ───────────────────────── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Invisible Video for Face Detection */}
-        <video ref={videoRef} className="hidden" />
+        <video ref={videoRef} className="hidden" autoPlay playsInline muted />
 
         {/* Left: Question + Options */}
         <main 

@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { authService } from "@/lib/services/auth-service";
 import { contestService } from "@/lib/services/contest-service";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useCameraStream } from "@/lib/hooks/useCameraStream";
+import { useProctoringStore } from "@/lib/stores/proctoring-store";
 import { CameraCheckWidget } from "@/components/features/proctoring/CameraCheckWidget";
 import type { Contest } from "@/lib/types";
 
@@ -80,8 +80,10 @@ export default function QuizEntryPage() {
   // Device conflict
   const [showConflict, setShowConflict] = useState(false);
 
-  // Camera
-  const { stream, status: cameraStatus, errorMessage: cameraError, requestCamera, stopCamera } = useCameraStream();
+  // Camera - from proctoring store
+  const videoStream = useProctoringStore((s) => s.videoStream);
+  const cameraStatus = useProctoringStore((s) => s.cameraStatus);
+  const requestCameraPermission = useProctoringStore((s) => s.requestCameraPermission);
 
   // Auth store
   const setSession = useAuthStore((s) => s.setSession);
@@ -115,12 +117,10 @@ export default function QuizEntryPage() {
   // ─── Request camera on CAMERA step ──────────────
   useEffect(() => {
     if (step === "CAMERA") {
-      requestCamera();
+      requestCameraPermission();
     }
-    return () => {
-      if (step === "CAMERA") stopCamera();
-    };
-  }, [step]);
+    // DO NOT stop on cleanup — stream must survive navigation to /live
+  }, [step, requestCameraPermission]);
 
   // ─── Full identifier with country code ──────────
   const getFullIdentifier = useCallback(() => {
@@ -606,18 +606,15 @@ export default function QuizEntryPage() {
                 <motion.div key="camera" variants={stepVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.26, ease: "easeOut" }}>
                   <button
                     type="button"
-                    onClick={() => { setStep("OTP"); stopCamera(); }}
+                    onClick={() => { setStep("OTP"); }}
                     className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4" /> Back
                   </button>
 
                   <CameraCheckWidget
-                    stream={stream}
-                    cameraStatus={cameraStatus}
-                    cameraError={cameraError}
                     onProceed={handleRedirect}
-                    onRetryCamera={requestCamera}
+                    onRetryCamera={requestCameraPermission}
                   />
                 </motion.div>
               )}

@@ -129,9 +129,29 @@ export const useProctoringStore = create<ProctoringState & ProctoringActions>()(
     setVideoStream: (stream) => set({ videoStream: stream }),
 
     requestCameraPermission: async () => {
+      const { videoStream, cameraStatus } = get();
+      
+      // If already active, return true immediately (do NOT call getUserMedia again)
+      if (cameraStatus === 'active' && videoStream) {
+        return true;
+      }
+
       try {
         set({ cameraStatus: 'requesting' });
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+
+        const constraints: MediaStreamConstraints = {
+          video: {
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 15, max: 30 },
+          },
+          audio: false,
+        };
+
+        // iOS Safari: must request in response to user gesture (handled by caller)
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
         set({
           isCameraPermissionGranted: true,
           isCameraEnabled: true,
@@ -139,12 +159,15 @@ export const useProctoringStore = create<ProctoringState & ProctoringActions>()(
           cameraStatus: 'active',
         });
         return true;
-      } catch {
+      } catch (err) {
+        const error = err as DOMException;
+        // NotAllowedError = denied; NotReadableError = already in use (iOS bug)
         set({
           isCameraPermissionGranted: false,
           isCameraEnabled: false,
-          cameraStatus: 'denied',
+          cameraStatus: error.name === 'NotAllowedError' ? 'denied' : 'error',
         });
+        console.error('[Proctoring] Camera error:', error.name, error.message);
         return false;
       }
     },

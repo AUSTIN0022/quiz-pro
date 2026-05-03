@@ -1,58 +1,12 @@
 import { MessageTemplate, MessageDraft, SentMessage, RecipientFilter, MessageChannel, MessageStatus } from '@/lib/types';
+import { MockDB } from '@/lib/mock/db';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Mock data stores
-let messageTemplates: MessageTemplate[] = [
-  {
-    id: 'tpl-1',
-    orgId: 'org-1',
-    name: 'Registration Confirmed',
-    channel: 'both',
-    body: 'Hi {{fullName}},\n\nYour registration for {{contestName}} is confirmed!\nParticipant ID: {{participantId}}\n\nGood luck!',
-    variables: ['fullName', 'contestName', 'participantId'],
-    isSystem: true,
-    systemEvent: 'registration_confirmed',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'tpl-2',
-    orgId: 'org-1',
-    name: 'Day Before Reminder',
-    channel: 'whatsapp',
-    body: '📢 {{contestName}} starts tomorrow at {{contestTime}}!\n\nDon\'t forget to join on {{contestDate}}. Be on time!',
-    variables: ['contestName', 'contestTime', 'contestDate'],
-    isSystem: true,
-    systemEvent: 'day_before_reminder',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'tpl-3',
-    orgId: 'org-1',
-    name: 'Contest Started',
-    channel: 'whatsapp',
-    body: '🚀 {{contestName}} has started!\n\nAccess the quiz: {{quizUrl}}\n\nGood luck!',
-    variables: ['contestName', 'quizUrl'],
-    isSystem: true,
-    systemEvent: 'contest_started',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'tpl-4',
-    orgId: 'org-1',
-    name: 'Results Published',
-    channel: 'both',
-    body: 'Hi {{fullName}},\n\nYour results are out!\nScore: {{score}}/100\nRank: {{rank}}\n\nView full details: {{resultUrl}}',
-    variables: ['fullName', 'score', 'rank', 'resultUrl'],
-    isSystem: true,
-    systemEvent: 'results_published',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+let messageTemplates: MessageTemplate[] = MockDB.messageTemplates;
+
+// TEMPLATE DEFINITIONS REMOVED - Now using MockDB.messageTemplates
 
 let sentMessages: SentMessage[] = [];
 let scheduledMessages: MessageDraft[] = [];

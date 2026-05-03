@@ -1,4 +1,5 @@
 import type { ApiResponse } from '@/lib/types';
+import { MockDB } from '@/lib/mock/db';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -23,7 +24,9 @@ export interface CertificateTemplate {
 }
 
 class CertificateService {
-  private certificates: Certificate[] = [];
+  private get certificates(): Certificate[] {
+    return MockDB.certificates;
+  }
   private templates: CertificateTemplate[] = [
     {
       id: 'tmpl-default',

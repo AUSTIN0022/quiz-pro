@@ -1,4 +1,6 @@
 import type { Contest } from '@/lib/types';
+import { MockDB } from '@/lib/mock/db';
+import { getAnalyticsForContest, getOrgAnalytics } from '@/lib/mock/relations';
 
 interface DailyMetric {
   date: string;
@@ -38,39 +40,25 @@ interface TimeDistribution {
 }
 
 class AnalyticsService {
-  private dailyMetrics: DailyMetric[] = [];
-  private contestMetrics: ContestMetric[] = [];
-
-  constructor() {
-    this.initializeSampleData();
+  private get dailyMetrics(): DailyMetric[] {
+    return MockDB.analyticsCache.dailyRegistrations.map(dr => ({
+      date: dr.date,
+      registrations: dr.count,
+      paid: Math.floor(dr.count * 0.8),
+      free: Math.floor(dr.count * 0.2),
+      revenue: Math.floor(dr.count * 0.8 * 200),
+    }));
+  }
+  private get contestMetrics(): ContestMetric[] {
+    return MockDB.contests.map(c => ({
+      id: c.id,
+      title: c.title,
+      registrations: c._counts.registered,
+      participationRate: c._counts.confirmed / c._counts.registered,
+    }));
   }
 
-  private initializeSampleData() {
-    // Generate last 30 days of metrics
-    const today = new Date();
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-
-      this.dailyMetrics.push({
-        date: dateStr,
-        registrations: Math.floor(Math.random() * 50) + 10,
-        paid: Math.floor(Math.random() * 40) + 5,
-        free: Math.floor(Math.random() * 20) + 3,
-        revenue: Math.floor(Math.random() * 20000) + 5000,
-      });
-    }
-
-    // Sample contest metrics
-    this.contestMetrics = [
-      { id: '1', title: 'React Advanced Patterns', registrations: 245, participationRate: 92 },
-      { id: '2', title: 'TypeScript Masterclass', registrations: 189, participationRate: 88 },
-      { id: '3', title: 'Next.js Performance', registrations: 156, participationRate: 85 },
-      { id: '4', title: 'Web Security Basics', registrations: 134, participationRate: 79 },
-      { id: '5', title: 'CSS Grid & Flexbox', registrations: 98, participationRate: 75 },
-    ];
-  }
+  // constructor removed - data comes from MockDB
 
   getOrgAnalytics(orgId: string, dateRange: { from: string; to: string }) {
     return {

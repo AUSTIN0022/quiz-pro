@@ -1,5 +1,6 @@
 import type { Registration, RegistrationFormData, ApiResponse } from '@/lib/types';
-import registrationsData from '@/seed/registrations.json';
+import { MockDB } from '@/lib/mock/db';
+import { getRegistrationsForContest } from '@/lib/mock/relations';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -8,7 +9,9 @@ const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9
 const generateParticipantId = () => `QZCP${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
 class RegistrationService {
-  private registrations: Registration[] = registrationsData as Registration[];
+  private get registrations(): Registration[] {
+    return MockDB.registrations;
+  }
 
   async createRegistration(
     contestId: string,
@@ -162,6 +165,14 @@ class RegistrationService {
       success: true,
       data: { sent: true },
       message: `OTP sent to ${email}`
+    };
+  }
+
+  async getRegistrationsByContestId(contestId: string): Promise<ApiResponse<Registration[]>> {
+    await delay(300);
+    return {
+      success: true,
+      data: getRegistrationsForContest(contestId)
     };
   }
 
