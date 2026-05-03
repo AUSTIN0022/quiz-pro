@@ -105,11 +105,11 @@ export default function LiveMonitorTabPage() {
         });
     }, [participants, searchQuery, statusFilter]);
 
-    if (!connected && participants.length === 0) {
+    if (participants.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-muted-foreground animate-pulse font-medium">Connecting to live contest server...</p>
+                <p className="text-muted-foreground animate-pulse font-medium">Loading participants...</p>
             </div>
         );
     }

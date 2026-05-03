@@ -20,6 +20,7 @@ import { ProctorWarningModal, type WarningType, FlaggedBanner } from "@/componen
 import { FullscreenReturnOverlay } from "@/components/features/proctoring/FullscreenReturnOverlay";
 import { QuizTopBar } from "@/components/features/quiz/QuizTopBar";
 import { QuizProgressBar } from "@/components/features/quiz/QuizProgressBar";
+import { ProctoringRightPanel } from "@/components/features/proctoring/ProctoringRightPanel";
 import { QuestionCard } from "@/components/features/quiz/QuestionCard";
 import { OptionButton } from "@/components/features/quiz/OptionButton";
 import { MobileQuizNavigatorSheet } from "@/components/features/quiz/MobileQuizNavigatorSheet";
@@ -216,12 +217,12 @@ export default function LiveQuizPage() {
       {/* ─── Progress Bar ─────────────────────────── */}
       <QuizProgressBar />
 
-      {/* ─── Main Quiz Area ───────────────────────── */}
+      {/* ─── Main Quiz Area with Right Sidebar ───── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Invisible Video for Face Detection */}
         <video ref={videoRef} className="hidden" autoPlay playsInline muted />
 
-        {/* Full Width: Question + Options */}
+        {/* Left: Full Width: Question + Options */}
         <main 
           className="flex-1 overflow-y-auto flex flex-col p-4 sm:p-8 lg:p-12"
           onTouchStart={handleTouchStart}
@@ -274,6 +275,11 @@ export default function LiveQuizPage() {
             </div>
           </div>
         </main>
+
+        {/* Right: Proctoring Sidebar (Desktop) */}
+        <div className="hidden lg:flex">
+          <ProctoringRightPanel />
+        </div>
       </div>
 
       {/* Mobile: Bottom Action Buttons */}

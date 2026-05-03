@@ -2,9 +2,7 @@
 
 import { CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CameraFeed } from '@/components/features/proctoring/CameraFeed';
 import { useQuizStore } from '@/lib/stores/quiz-store';
-import { useProctoringStore } from '@/lib/stores/proctoring-store';
 import { QuizCountdownDisplay } from './QuizCountdownDisplay';
 import { ProctoringStatusChip } from '@/components/features/proctoring/ProctoringStatusChip';
 
@@ -23,7 +21,6 @@ export function QuizTopBar({ contestTitle, onSubmitClick }: QuizTopBarProps) {
   const timeRemaining = useQuizStore((s) => s.timeRemaining);
   const answeredCount = Object.keys(useQuizStore((s) => s.answers)).length;
   const wsStatus = useQuizStore((s) => s.wsStatus);
-  const videoStream = useProctoringStore((s) => s.videoStream);
 
   return (
     <>
@@ -51,11 +48,9 @@ export function QuizTopBar({ contestTitle, onSubmitClick }: QuizTopBarProps) {
           <QuizCountdownDisplay timeRemaining={timeRemaining} />
         </div>
 
-        {/* Right: Camera + Status + Submit */}
-        <div className="flex items-center gap-4">
+        {/* Right: Status + Submit */}
+        <div className="flex items-center gap-3">
           <ProctoringStatusChip />
-          
-          {videoStream && <CameraFeed stream={videoStream} variant="topbar-large" />}
 
           <Button 
             onClick={onSubmitClick} 
