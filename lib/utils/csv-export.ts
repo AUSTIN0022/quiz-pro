@@ -64,10 +64,10 @@ export function resultsToCSV(results: QuizResult[]): string {
   return formatAsCSV(headers, rows);
 }
 
-function formatAsCSV(headers: string[], rows: string[][]): string {
+function formatAsCSV(headers: string[], rows: (string | undefined)[][]): string {
   const escapedHeaders = headers.map(h => `"${h}"`).join(',');
   const escapedRows = rows.map(row =>
-    row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(',')
+    row.map(cell => `"${(cell || '').toString().replace(/"/g, '""')}"`).join(',')
   );
 
   return [escapedHeaders, ...escapedRows].join('\n');

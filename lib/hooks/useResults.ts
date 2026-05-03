@@ -73,7 +73,7 @@ export function useResults(contestId: string) {
           setState(prev => ({
             ...prev,
             evaluated: true,
-            evaluatedCount: response.data.evaluated
+            evaluatedCount: response.data?.evaluated ?? 0
           }));
         }
         return response;
