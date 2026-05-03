@@ -10,7 +10,6 @@ import {
     AlertTriangle,
     Search,
     Filter,
-    LayoutGrid,
     List,
     MoreVertical,
     Eye,
@@ -86,18 +85,13 @@ export default function LiveMonitorTabPage() {
         forceSubmitParticipant
     } = useAdminContestSocket(id, 'admin-123'); // Mock admin ID
 
-    const [activeSubTab, setActiveSubTab] = useState<'grid' | 'leaderboard'>('grid');
-    const [viewMode, setViewMode] = useState<'grid' | 'table' | 'outliers'>('grid');
+    const [activeSubTab, setActiveSubTab] = useState<'leaderboard'>('leaderboard');
+    const [viewMode, setViewMode] = useState<'table' | 'outliers'>('table');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | string>('all');
     const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
     const [selectedParticipant, setSelectedParticipant] = useState<LiveParticipant | null>(null);
     const [anomalyEvents, setAnomalyEvents] = useState<AnomalyEvent[]>([]);
-
-    // Debug logging for view mode changes
-    useEffect(() => {
-        console.log("[v0] View mode changed to:", viewMode);
-    }, [viewMode]);
 
     const stats = useMemo(() => getParticipantStats(), [getParticipantStats]);
 
@@ -147,9 +141,6 @@ export default function LiveMonitorTabPage() {
                     <div className="h-4 w-px bg-border hidden sm:block" />
                     <Tabs value={activeSubTab} onValueChange={(v: any) => setActiveSubTab(v)} className="w-fit">
                         <TabsList className="h-8 bg-transparent p-0 gap-2">
-                            <TabsTrigger value="grid" className="h-8 px-4 data-[state=active]:bg-background rounded-full border-transparent data-[state=active]:border-border border text-xs">
-                                Participant Grid
-                            </TabsTrigger>
                             <TabsTrigger value="leaderboard" className="h-8 px-4 data-[state=active]:bg-background rounded-full border-transparent data-[state=active]:border-border border text-xs">
                                 Live Leaderboard
                             </TabsTrigger>
@@ -166,102 +157,91 @@ export default function LiveMonitorTabPage() {
                 </Button>
             </div>
 
-            {/* SUB-TABS CONTENT */}
-            {activeSubTab === 'grid' ? (
-                <div className="space-y-6">
-                    {/* Controls Bar */}
-                    <div className="flex flex-col sm:flex-row gap-4 items-center">
-                        <div className="relative flex-1 w-full">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search participants..."
-                                className="pl-9 bg-muted/30"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                        Filter: {statusFilter}
-                                        <ChevronDown className="ml-2 h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => setStatusFilter('all')}>All</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setStatusFilter('active')}>Answering</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setStatusFilter('submitted')}>Submitted</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setStatusFilter('disconnected')}>Disconnected</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setStatusFilter('flagged')}>Flagged</DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            <div className="flex p-1 bg-muted/50 rounded-lg border border-border/50">
-                                <Button
-                                    variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                                    size="icon"
-                                    className="h-8 w-8 rounded-md"
-                                    onClick={() => setViewMode('grid')}
-                                    title="Grid View"
-                                >
-                                    <LayoutGrid className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-                                    size="icon"
-                                    className="h-8 w-8 rounded-md"
-                                    onClick={() => setViewMode('table')}
-                                    title="Table View"
-                                >
-                                    <List className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant={viewMode === 'outliers' ? 'secondary' : 'ghost'}
-                                    size="sm"
-                                    className="h-8 px-2 rounded-md text-xs"
-                                    onClick={() => setViewMode('outliers')}
-                                    title="Ranked Outliers & Anomaly Feed"
-                                >
-                                    <TrendingUp className="h-3.5 w-3.5 mr-1" />
-                                    Outliers
-                                </Button>
-                            </div>
-                        </div>
+            {/* TABLE/OUTLIERS SECTION */}
+            <div className="space-y-6">
+                {/* Controls Bar */}
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search participants..."
+                            className="pl-9 bg-muted/30"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
                     </div>
 
-                    {/* Grid/Table/Outliers View */}
-                    <div key={viewMode}>
-                        {viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                {filteredParticipants.map(p => (
-                                    <LiveParticipantCard
-                                        key={p.participantId}
-                                        participant={p}
-                                        onClick={() => setSelectedParticipant(p)}
-                                    />
-                                ))}
-                            </div>
-                        ) : viewMode === 'table' ? (
-                            <LiveTable participants={filteredParticipants} onDetails={(p) => setSelectedParticipant(p)} onForceSubmit={(id) => forceSubmitParticipant(id)} />
-                        ) : (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <RankedOutliersSection 
-                                    participants={participants}
-                                    totalParticipants={stats.totalJoined}
-                                />
-                                <AnomalyFeedSection 
-                                    participants={participants}
-                                    events={anomalyEvents}
-                                />
-                            </div>
-                        )}
+                    <div className="flex items-center gap-2">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                    Filter: {statusFilter}
+                                    <ChevronDown className="ml-2 h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setStatusFilter('all')}>All</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter('active')}>Answering</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter('submitted')}>Submitted</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter('disconnected')}>Disconnected</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setStatusFilter('flagged')}>Flagged</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <div className="flex p-1 bg-muted/50 rounded-lg border border-border/50 gap-1">
+                            <Button
+                                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                                size="icon"
+                                className="h-8 w-8 rounded-md"
+                                onClick={() => setViewMode('table')}
+                                title="Table View"
+                            >
+                                <List className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant={viewMode === 'outliers' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                className="h-8 px-2 rounded-md text-xs"
+                                onClick={() => setViewMode('outliers')}
+                                title="Ranked Outliers & Anomaly Feed"
+                            >
+                                <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                                Outliers
+                            </Button>
+                        </div>
                     </div>
                 </div>
-            ) : (
-                <LiveLeaderboard participants={participants} />
-            )}
+
+                {/* Table/Outliers View */}
+                <div key={viewMode}>
+                    {viewMode === 'table' ? (
+                        <LiveTable participants={filteredParticipants} onDetails={(p) => setSelectedParticipant(p)} onForceSubmit={(id) => forceSubmitParticipant(id)} />
+                    ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <RankedOutliersSection 
+                                participants={participants}
+                                totalParticipants={stats.totalJoined}
+                            />
+                            <AnomalyFeedSection 
+                                participants={participants}
+                                events={anomalyEvents}
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* LEADERBOARD SECTION (alternative view) */}
+            <Tabs value="leaderboard" className="w-full">
+                <TabsList className="h-8 bg-transparent p-0 gap-2 mb-6">
+                    <TabsTrigger value="leaderboard" className="h-8 px-4 data-[state=active]:bg-background rounded-full border-transparent data-[state=active]:border-border border text-xs">
+                        Live Leaderboard
+                    </TabsTrigger>
+                </TabsList>
+                <TabsContent value="leaderboard">
+                    <LiveLeaderboard participants={participants} />
+                </TabsContent>
+            </Tabs>
 
             {/* BROADCAST PANEL DRAWER */}
             <BroadcastPanel
