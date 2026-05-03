@@ -108,10 +108,17 @@ export function getRegistrationsForContest(contestId: string): RegistrationWithC
   return MockDB.registrations
     .filter(r => r.contestId === contestId)
     .map(reg => {
-      const contact = MockDB.contacts.find(c => c.id === `contact-${reg.id.split('-')[1]}`);
+      const contact = MockDB.contacts.find(c => c.id === `contact-${reg.id.split('-')[1].slice(-3)}`);
       return {
         ...reg,
-        contactDetails: contact,
+        contactDetails: contact || {
+          id: `contact-${reg.id.split('-')[1].slice(-3)}`,
+          fullName: reg.participantDetails.fullName,
+          email: reg.participantDetails.email,
+          phone: reg.participantDetails.phone,
+          country: reg.participantDetails.country || 'India',
+          createdAt: reg.registeredAt,
+        } as any,
       };
     });
 }
@@ -140,12 +147,12 @@ export function getSubmissionsForContest(contestId: string) {
     .map(submission => {
       const attempt = (MockDB.attempts as any[]).find(a => a.id === `attempt-${submission.registrationId}`);
       const registration = MockDB.registrations.find(r => r.id === attempt?.registrationId);
-      const contact = registration ? MockDB.contacts.find(c => c.id === `contact-${registration.id.split('-')[1]}`) : undefined;
+      const contact = registration ? MockDB.contacts.find(c => c.id === `contact-${registration.id.split('-')[1].slice(-3)}`) : undefined;
 
       return {
         ...submission,
         registration,
-        contactDetails: contact,
+        contactDetails: contact || registration?.participantDetails,
       };
     });
 }
@@ -178,7 +185,8 @@ export function getLiveParticipantsForContest(contestId: string): LiveParticipan
 
   // Limit to first 20 for display
   return regs.slice(0, 20).map((reg, i) => {
-    const contact = MockDB.contacts.find(c => c.id === `contact-${reg.id.split('-')[1]}`)!;
+    const contact = MockDB.contacts.find(c => c.id === `contact-${reg.id.split('-')[1].slice(-3)}`);
+    const name = contact?.fullName || reg.participantDetails?.fullName || 'Anonymous Participant';
 
     // Deterministic but varied state based on index
     const progress = Math.min(totalQuestions, Math.floor((i / 20) * totalQuestions) + Math.floor(Math.random() * 3));
@@ -186,8 +194,8 @@ export function getLiveParticipantsForContest(contestId: string): LiveParticipan
 
     return {
       participantId: reg.id,
-      name: contact.fullName,
-      avatarInitials: contact.fullName
+      name,
+      avatarInitials: name
         .split(' ')
         .map((n: string) => n[0])
         .join('')
@@ -217,7 +225,7 @@ export function getContactWithHistory(contactId: string): ContactWithHistory {
     throw new Error(`Contact ${contactId} not found`);
   }
 
-  const registrations = MockDB.registrations.filter(r => r.participantId === `part-${contactId.split('-')[1]}`);
+  const registrations = MockDB.registrations.filter(r => r.participantId === `part-${contactId.split('-')[1].padStart(4, '0')}`);
   const submissions = MockDB.attempts.filter(a => registrations.some(reg => reg.id === a.registrationId));
 
   return {
