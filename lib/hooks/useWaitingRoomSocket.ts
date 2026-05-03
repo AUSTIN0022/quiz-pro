@@ -20,7 +20,7 @@ export interface BroadcastMessage {
 // ============================================
 // Seed mode
 // ============================================
-const USE_SEED_WS = process.env.NEXT_PUBLIC_USE_SEED_WS === 'true' || true;
+const USE_SEED_WS = process.env.NEXT_PUBLIC_USE_SEED_WS === 'true';
 
 // ============================================
 // Hook
@@ -59,14 +59,46 @@ export function useWaitingRoomSocket(
       });
     }, 3000);
 
-    // Dev shortcut: Ctrl+Shift+S to simulate contest start
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'S') {
-        e.preventDefault();
+    // AUTO-START SIMULATION
+    // For the simulation contest, auto-start after 2 minutes.
+    // Use sessionStorage to remember start time across refreshes.
+    const sessionKey = `sim-start-${contestId}`;
+    let startAt: number;
+
+    const stored = sessionStorage.getItem(sessionKey);
+    if (stored) {
+      startAt = parseInt(stored, 10);
+    } else {
+      // First visit: set start 2 minutes from now
+      startAt = Date.now() + 2 * 60 * 1000;
+      sessionStorage.setItem(sessionKey, String(startAt));
+    }
+
+    const msUntilStart = startAt - Date.now();
+
+    let autoStartTimer: ReturnType<typeof setTimeout> | null = null;
+    if (msUntilStart > 0) {
+      autoStartTimer = setTimeout(() => {
         setShowStartingOverlay(true);
         setTimeout(() => {
           router.push(`/quiz/${contestId}/live`);
         }, 1800);
+      }, msUntilStart);
+    } else {
+      // Already past start time — go straight to live
+      router.push(`/quiz/${contestId}/live`);
+    }
+
+    // Expose the startAt time so the countdown can use it
+    setContestStartTime(new Date(startAt));
+
+    // Keep Ctrl+Shift+S for manual override
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        if (autoStartTimer) clearTimeout(autoStartTimer);
+        setShowStartingOverlay(true);
+        setTimeout(() => router.push(`/quiz/${contestId}/live`), 1800);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -74,6 +106,7 @@ export function useWaitingRoomSocket(
     return () => {
       clearTimeout(initTimer);
       if (seedIntervalRef.current) clearInterval(seedIntervalRef.current);
+      if (autoStartTimer) clearTimeout(autoStartTimer);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [contestId, router]);

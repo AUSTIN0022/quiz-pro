@@ -1,11 +1,13 @@
 import type { Contest, ContestFilters, ApiResponse } from '@/lib/types';
-import contestsData from '@/seed/contests.json';
+import { MockDB } from '@/lib/mock/db';
 
 // Simulated API delay for realistic UX
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 class ContestService {
-  private contests: Contest[] = contestsData as unknown as Contest[];
+  private get contests(): Contest[] {
+    return MockDB.contests;
+  }
 
   async getContests(filters?: ContestFilters): Promise<ApiResponse<Contest[]>> {
     await delay(300);

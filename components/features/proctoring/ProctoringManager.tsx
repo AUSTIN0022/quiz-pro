@@ -102,6 +102,25 @@ export function ProctoringManager({
     return () => document.removeEventListener('keydown', prevent);
   }, []);
 
+  // 5. CAMERA STREAM
+  // On mount: check if stream already exists in store (from entry page)
+  // Only request if not already granted (handles direct navigation to /live)
+  useEffect(() => {
+    const storeState = useProctoringStore.getState();
+    if (!storeState.videoStream || storeState.cameraStatus !== 'active') {
+      storeState.requestCameraPermission();
+    }
+  }, []);
+
+  // Attach stream to videoRef if provided
+  useEffect(() => {
+    const { videoStream } = useProctoringStore.getState();
+    if (videoRef.current && videoStream) {
+      videoRef.current.srcObject = videoStream;
+      videoRef.current.play().catch(() => {}); // autoplay policy
+    }
+  }, [videoRef]);
+
   // 6. FACE DETECTION
   // We wrap the emit to match the expected signature in useFaceDetection
   const wrappedEmit = (event: string, data: Record<string, unknown>) => {

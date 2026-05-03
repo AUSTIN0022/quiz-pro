@@ -1,9 +1,27 @@
 import { ParticipantProfile, ApiResponse } from '@/lib/types';
+import { MockDB } from '@/lib/mock/db';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 class ParticipantService {
-  private profiles: ParticipantProfile[] = [
+  private get profiles(): ParticipantProfile[] {
+    return MockDB.contacts.map((c, i) => ({
+      id: `profile-${String(i + 1).padStart(3, '0')}`,
+      participantId: `PART-${c.id.split('-')[1]}`,
+      fullName: c.fullName,
+      email: c.email,
+      phone: c.phone,
+      notificationPreferences: {
+        emailReminders: true,
+        whatsappReminders: true,
+        emailResults: true,
+      },
+      createdAt: c.createdAt,
+      updatedAt: new Date().toISOString(),
+    }));
+  }
+
+  private _profiles: ParticipantProfile[] = [
     {
       id: 'profile-001',
       participantId: 'QZCP12345ABC',

@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import io, { type Socket } from 'socket.io-client';
 
+const USE_SEED_WS = process.env.NEXT_PUBLIC_USE_SEED_WS === 'true';
+
 export interface LiveParticipant {
   participantId: string;
   name: string;
@@ -52,6 +54,40 @@ export function useAdminContestSocket(
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (USE_SEED_WS) {
+      // SEED MODE: Generate simulated participants from MockDB
+      import('@/lib/mock/relations').then(({ getLiveParticipantsForContest }) => {
+        const initial = getLiveParticipantsForContest(contestId);
+        setParticipants(initial);
+        setConnected(true);
+
+        // Simulate real-time updates every 2 seconds
+        const updateInterval = setInterval(() => {
+          setParticipants((prev) =>
+            prev.map((p) => {
+              if (p.status === 'submitted' || p.status === 'disconnected') return p;
+              
+              const shouldAnswer = Math.random() > 0.6 && p.answeredCount < p.totalQuestions;
+              const shouldSubmit = p.answeredCount >= p.totalQuestions - 1 && Math.random() > 0.8;
+
+              return {
+                ...p,
+                answeredCount: shouldAnswer ? Math.min(p.answeredCount + 1, p.totalQuestions) : p.answeredCount,
+                currentQuestion: shouldAnswer ? Math.min(p.currentQuestion + 1, p.totalQuestions) : p.currentQuestion,
+                timeOnQuestion: shouldAnswer ? 0 : p.timeOnQuestion + 2,
+                timeRemainingSeconds: Math.max(0, p.timeRemainingSeconds - 2),
+                status: shouldSubmit ? 'submitted' : p.status,
+                estimatedScorePercent: Math.min(100, p.estimatedScorePercent + (shouldAnswer ? Math.round(Math.random() * 4) : 0)),
+              };
+            })
+          );
+        }, 2000);
+
+        return () => clearInterval(updateInterval);
+      });
+      return;
+    }
+
     // Initialize socket connection
     const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
       auth: {

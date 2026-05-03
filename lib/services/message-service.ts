@@ -1,9 +1,10 @@
 import { MessageTemplate, MessageDraft, SentMessage, RecipientFilter, MessageChannel, MessageStatus } from '@/lib/types';
+import { MockDB } from '@/lib/mock/db';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Mock data stores
-let messageTemplates: MessageTemplate[] = [
+let messageTemplates: MessageTemplate[] = MockDB.messageTemplates;
   {
     id: 'tpl-1',
     orgId: 'org-1',

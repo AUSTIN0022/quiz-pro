@@ -1,10 +1,12 @@
 import type { QuizResult, ApiResponse, Question, QuizAttempt } from '@/lib/types';
-import submissionsData from '@/seed/submissions.json';
+import { MockDB } from '@/lib/mock/db';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 class SubmissionService {
-  private submissions: QuizAttempt[] = submissionsData as QuizAttempt[];
+  private get submissions(): QuizAttempt[] {
+    return MockDB.submissions;
+  }
 
   async submitQuiz(
     contestId: string,

@@ -60,6 +60,7 @@ export default function WaitingRoomPage() {
     broadcastMessage,
     clearBroadcast,
     showStartingOverlay,
+    contestStartTime,
   } = useWaitingRoomSocket(contestId, participantId, sessionToken);
 
   // ─── Load contest ───────────────────────────────
@@ -76,16 +77,11 @@ export default function WaitingRoomPage() {
 
   // ─── Countdown timer ───────────────────────────
   useEffect(() => {
-    if (!contest) return;
+    const target = contestStartTime || (contest ? new Date(`${contest.contestDate}T${contest.contestStartTime}:00`) : null);
+    if (!target) return;
 
     const tick = () => {
-      const now = new Date();
-      const contestDate = contest.contestDate;
-      const startParts = contest.contestStartTime.split(":");
-      const start = new Date(contestDate);
-      start.setHours(parseInt(startParts[0]), parseInt(startParts[1]), 0);
-
-      const diffMs = start.getTime() - now.getTime();
+      const diffMs = target.getTime() - Date.now();
       if (diffMs <= 0) {
         setTimeToStart({ d: 0, h: 0, m: 0, s: 0 });
         return;
@@ -102,7 +98,7 @@ export default function WaitingRoomPage() {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [contest]);
+  }, [contest, contestStartTime]);
 
   // ─── Mask identifier ────────────────────────────
   const maskedContact = useMemo(() => {
@@ -384,7 +380,7 @@ function BroadcastBanner({ message, onDismiss }: { message: BroadcastMessage; on
 
 // ═══════════════════════════════════════════════════════
 // INFO FIELD
-// ═══════════════════════════════════════════════════════
+// ══════════════════════════════════���════════════════════
 function InfoField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>

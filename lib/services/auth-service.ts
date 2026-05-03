@@ -1,5 +1,6 @@
 import type { ApiResponse, Registration } from '@/lib/types';
 import { registrationService } from './registration-service';
+import { MockDB } from '@/lib/mock/db';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

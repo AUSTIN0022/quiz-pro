@@ -1,4 +1,6 @@
 import type { Contest } from '@/lib/types';
+import { MockDB } from '@/lib/mock/db';
+import { getAnalyticsForContest, getOrgAnalytics } from '@/lib/mock/relations';
 
 interface DailyMetric {
   date: string;
@@ -38,22 +40,35 @@ interface TimeDistribution {
 }
 
 class AnalyticsService {
-  private dailyMetrics: DailyMetric[] = [];
-  private contestMetrics: ContestMetric[] = [];
-
-  constructor() {
-    this.initializeSampleData();
+  private get dailyMetrics(): DailyMetric[] {
+    return MockDB.analyticsCache.dailyRegistrations.map(dr => ({
+      date: dr.date,
+      registrations: dr.count,
+      paid: Math.floor(dr.count * 0.8),
+      free: Math.floor(dr.count * 0.2),
+      revenue: Math.floor(dr.count * 0.8 * 200),
+    }));
+  }
+  private get contestMetrics(): ContestMetric[] {
+    return MockDB.contests.map(c => ({
+      id: c.id,
+      title: c.title,
+      registrations: c._counts.registered,
+      participationRate: c._counts.confirmed / c._counts.registered,
+    }));
   }
 
+  // constructor removed - data comes from MockDB
+
   private initializeSampleData() {
-    // Generate last 30 days of metrics
+    // No longer needed - data comes from MockDB
     const today = new Date();
     for (let i = 29; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
 
-      this.dailyMetrics.push({
+      // Removed - data from MockDB instead. Keeping method signature:
         date: dateStr,
         registrations: Math.floor(Math.random() * 50) + 10,
         paid: Math.floor(Math.random() * 40) + 5,
