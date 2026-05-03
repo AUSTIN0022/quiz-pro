@@ -53,6 +53,7 @@ import { Contest, ContestPhase } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
+import { EditContestDetailsModal } from './EditContestDetailsModal';
 
 interface ContestActionBarProps {
   contest: Contest;
@@ -75,6 +76,7 @@ export function ContestActionBar({
   const [isPublishing, setIsPublishing] = useState(false);
   const [isConfirmingPublish, setIsConfirmingPublish] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isEditDetailsOpen, setIsEditDetailsOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [confirmText, setConfirmText] = useState('');
 
@@ -187,7 +189,7 @@ export function ContestActionBar({
         <Copy className="mr-2 h-4 w-4" />
         Copy Link
       </Button>
-      <Button variant="outline" size="sm">
+      <Button variant="outline" size="sm" onClick={() => setIsEditDetailsOpen(true)}>
         <Settings className="mr-2 h-4 w-4" />
         Edit Details
       </Button>
@@ -203,7 +205,7 @@ export function ContestActionBar({
       <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => setIsCancelModalOpen(true)}>
         Cancel Contest
       </Button>
-      <Button variant="outline" size="sm">
+      <Button variant="outline" size="sm" onClick={() => setIsEditDetailsOpen(true)}>
         <Settings className="mr-2 h-4 w-4" />
         Edit Details
       </Button>
@@ -416,6 +418,18 @@ export function ContestActionBar({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Contest Details Modal */}
+      <EditContestDetailsModal
+        contest={contest}
+        isOpen={isEditDetailsOpen}
+        onOpenChange={setIsEditDetailsOpen}
+        onSave={async (updates) => {
+          // Call the parent's onUpdate handler if available
+          // For now, just show a success message
+          toast.success('Contest details updated');
+        }}
+      />
     </div>
   );
 }

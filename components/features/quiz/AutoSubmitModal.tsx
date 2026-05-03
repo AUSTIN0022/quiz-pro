@@ -39,7 +39,6 @@ export function AutoSubmitModal({ open, onAutoSubmit, isSubmitting }: AutoSubmit
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent 
         className="max-w-md p-0 overflow-hidden border-none bg-slate-900 shadow-2xl"
-        hideCloseButton
       >
         <div className="p-8 flex flex-col items-center text-center">
           <AnimatePresence mode="wait">

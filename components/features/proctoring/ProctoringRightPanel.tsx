@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 export function ProctoringRightPanel() {
   const videoStream = useProctoringStore((s) => s.videoStream);
   const cameraStatus = useProctoringStore((s) => s.cameraStatus);
-  const warningCount = useProctoringStore((s) => s.warningCount);
+  const totalWarnings = useProctoringStore((s) => s.totalWarnings);
 
   // Mock network status (in real app, use actual network monitor)
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -91,14 +91,14 @@ export function ProctoringRightPanel() {
         </div>
 
         {/* Warning Count */}
-        {warningCount > 0 && (
+        {totalWarnings > 0 && (
           <div className="space-y-1 p-3 bg-red-950/30 rounded-lg border border-red-500/20">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-red-500" />
               <span className="text-xs font-medium text-white">Warnings</span>
             </div>
             <p className="text-xs text-red-400">
-              {warningCount} proctoring warning{warningCount > 1 ? 's' : ''}
+              {totalWarnings} proctoring warning{totalWarnings > 1 ? 's' : ''}
             </p>
           </div>
         )}

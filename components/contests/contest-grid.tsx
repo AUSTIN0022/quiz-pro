@@ -205,10 +205,10 @@ export function ContestGrid() {
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            Showing {data.data.length} contest{data.data.length !== 1 ? 's' : ''}
+            Showing {data?.data?.length ?? 0} contest{(data?.data?.length ?? 0) !== 1 ? 's' : ''}
           </p>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {data.data.map((contest) => (
+            {data?.data?.map((contest) => (
               <ContestCard key={contest.id} contest={contest} />
             ))}
           </div>

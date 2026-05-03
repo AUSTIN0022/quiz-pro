@@ -1,11 +1,12 @@
 "use client";
 
 import { Flag, CheckCircle, Circle } from "lucide-react";
-import type { Question, QuizAnswer } from "@/lib/types";
+import type { QuizQuestion } from "@/lib/stores/quiz-store";
 
 interface QuestionNavigationProps {
-  questions: Question[];
-  answers: QuizAnswer[];
+  questions: QuizQuestion[];
+  answers: Record<number, number>;
+  flagged: number[];
   currentIndex: number;
   onNavigate: (index: number) => void;
 }
@@ -13,12 +14,13 @@ interface QuestionNavigationProps {
 export function QuestionNavigation({
   questions,
   answers,
+  flagged,
   currentIndex,
   onNavigate,
 }: QuestionNavigationProps) {
-  const answeredCount = answers.filter((a) => a.selectedOption !== null).length;
-  const markedCount = answers.filter((a) => a.markedForReview).length;
-  const notVisitedCount = answers.filter((a) => !a.visited && a.selectedOption === null).length;
+  const answeredCount = Object.keys(answers).length;
+  const markedCount = flagged.length;
+  const notVisitedCount = questions.length - answeredCount - markedCount;
 
   return (
     <div className="space-y-4">
@@ -55,10 +57,9 @@ export function QuestionNavigation({
       {/* Question Grid */}
       <div className="grid grid-cols-5 gap-2">
         {questions.map((_, index) => {
-          const answer = answers[index];
-          const isAnswered = answer?.selectedOption !== null;
-          const isMarked = answer?.markedForReview;
-          const isVisited = answer?.visited;
+          const answerIndex = answers[index];
+          const isAnswered = answerIndex !== undefined && answerIndex >= 0;
+          const isMarked = flagged.includes(index);
           const isCurrent = index === currentIndex;
 
           let bgClass = "bg-muted text-muted-foreground";
@@ -70,8 +71,6 @@ export function QuestionNavigation({
           } else if (isMarked) {
             bgClass = "bg-warning text-warning-foreground";
             Icon = Flag;
-          } else if (isVisited) {
-            bgClass = "bg-destructive/20 text-destructive";
           }
 
           return (

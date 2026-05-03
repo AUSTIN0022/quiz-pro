@@ -84,7 +84,7 @@ export function useTeamMembers(orgId: string) {
       try {
         const response = await organizationService.updateTeamMemberRole(orgId, memberId, role);
         if (response.success && response.data) {
-          setMembers(members.map(m => (m.id === memberId ? response.data : m)));
+          setMembers(members.map(m => (m.id === memberId ? response.data! : m)).filter(Boolean));
           return response.data;
         } else {
           setError(response.message || 'Failed to update role');

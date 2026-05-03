@@ -17,9 +17,9 @@ export function LiveParticipantCard({
   participant,
   onClick
 }: LiveParticipantCardProps) {
-  const initials = participant.participantName
+  const initials = participant.name
     .split(' ')
-    .map(n => n[0])
+    .map((n: string) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);
@@ -53,7 +53,7 @@ export function LiveParticipantCard({
   const showTimeWarning = participant.timeOnQuestion > 180; // 3 minutes
 
   const lastUpdatedMinutesAgo = Math.floor(
-    (Date.now() - new Date(participant.lastUpdated).getTime()) / 60000
+    (Date.now() - new Date(participant.lastActivityAt).getTime()) / 60000
   );
 
   return (
@@ -86,7 +86,7 @@ export function LiveParticipantCard({
               {initials}
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-sm truncate">{participant.participantName}</p>
+              <p className="font-semibold text-sm truncate">{participant.name}</p>
               <p className="text-xs text-muted-foreground">ID: {participant.participantId.slice(-6)}</p>
             </div>
           </div>
