@@ -195,11 +195,8 @@ class AuthService {
     contactType: 'phone' | 'email',
     contestId: string
   ): Promise<ApiResponse<Registration>> {
-    await delay(100);
-
-    // Import registrations from seed
-    const registrationsData = await import('@/seed/registrations.json');
-    const registrations = registrationsData.default as Registration[];
+    // Use MockDB for registrations
+    const registrations = MockDB.registrations;
 
     const registration = registrations.find(r => {
       if (r.contestId !== contestId) return false;
@@ -207,6 +204,15 @@ class AuthService {
         return r.participantDetails.phone === contact || 
                r.participantDetails.phone.replace(/\D/g, '') === contact.replace(/\D/g, '');
       }
+      return r.participantDetails.email.toLowerCase() === contact.toLowerCase();
+    });
+
+    if (!registration) {
+      return { success: false, error: 'NOT_REGISTERED' };
+    }
+
+    return { success: true, data: registration };
+  }
       return r.participantDetails.email.toLowerCase() === contact.toLowerCase();
     });
 
