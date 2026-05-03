@@ -60,33 +60,6 @@ class AnalyticsService {
 
   // constructor removed - data comes from MockDB
 
-  private initializeSampleData() {
-    // No longer needed - data comes from MockDB
-    const today = new Date();
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-
-      // Removed - data from MockDB instead. Keeping method signature:
-        date: dateStr,
-        registrations: Math.floor(Math.random() * 50) + 10,
-        paid: Math.floor(Math.random() * 40) + 5,
-        free: Math.floor(Math.random() * 20) + 3,
-        revenue: Math.floor(Math.random() * 20000) + 5000,
-      });
-    }
-
-    // Sample contest metrics
-    this.contestMetrics = [
-      { id: '1', title: 'React Advanced Patterns', registrations: 245, participationRate: 92 },
-      { id: '2', title: 'TypeScript Masterclass', registrations: 189, participationRate: 88 },
-      { id: '3', title: 'Next.js Performance', registrations: 156, participationRate: 85 },
-      { id: '4', title: 'Web Security Basics', registrations: 134, participationRate: 79 },
-      { id: '5', title: 'CSS Grid & Flexbox', registrations: 98, participationRate: 75 },
-    ];
-  }
-
   getOrgAnalytics(orgId: string, dateRange: { from: string; to: string }) {
     return {
       dailyMetrics: this.dailyMetrics,
