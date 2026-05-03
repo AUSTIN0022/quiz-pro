@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import io, { type Socket } from 'socket.io-client';
+import { getLiveParticipantsForContest } from '@/lib/mock/relations';
 
 const USE_SEED_WS = process.env.NEXT_PUBLIC_USE_SEED_WS === 'true';
 
@@ -55,41 +56,36 @@ export function useAdminContestSocket(
 
   useEffect(() => {
     if (USE_SEED_WS) {
-      // SEED MODE: Generate simulated participants from MockDB
-      let updateInterval: ReturnType<typeof setInterval>;
-      
-      import('@/lib/mock/relations').then(({ getLiveParticipantsForContest }) => {
-        const initial = getLiveParticipantsForContest(contestId);
-        setParticipants(initial);
-        setConnected(true);
-        setError(null);
+      // SEED MODE: Load seed data synchronously
+      // Load initial participants immediately
+      const initial = getLiveParticipantsForContest(contestId);
+      setParticipants(initial);
+      setConnected(true);
+      setError(null);
 
-        // Simulate real-time updates every 2 seconds
-        updateInterval = setInterval(() => {
-          setParticipants((prev) =>
-            prev.map((p) => {
-              if (p.status === 'submitted' || p.status === 'disconnected') return p;
-              
-              const shouldAnswer = Math.random() > 0.6 && p.answeredCount < p.totalQuestions;
-              const shouldSubmit = p.answeredCount >= p.totalQuestions - 1 && Math.random() > 0.8;
+      // Simulate real-time updates every 2 seconds
+      const updateInterval = setInterval(() => {
+        setParticipants((prev) =>
+          prev.map((p) => {
+            if (p.status === 'submitted' || p.status === 'disconnected') return p;
+            
+            const shouldAnswer = Math.random() > 0.6 && p.answeredCount < p.totalQuestions;
+            const shouldSubmit = p.answeredCount >= p.totalQuestions - 1 && Math.random() > 0.8;
 
-              return {
-                ...p,
-                answeredCount: shouldAnswer ? Math.min(p.answeredCount + 1, p.totalQuestions) : p.answeredCount,
-                currentQuestion: shouldAnswer ? Math.min(p.currentQuestion + 1, p.totalQuestions) : p.currentQuestion,
-                timeOnQuestion: shouldAnswer ? 0 : p.timeOnQuestion + 2,
-                timeRemainingSeconds: Math.max(0, p.timeRemainingSeconds - 2),
-                status: shouldSubmit ? 'submitted' : p.status,
-                estimatedScorePercent: Math.min(100, p.estimatedScorePercent + (shouldAnswer ? Math.round(Math.random() * 4) : 0)),
-              };
-            })
-          );
-        }, 2000);
-      });
+            return {
+              ...p,
+              answeredCount: shouldAnswer ? Math.min(p.answeredCount + 1, p.totalQuestions) : p.answeredCount,
+              currentQuestion: shouldAnswer ? Math.min(p.currentQuestion + 1, p.totalQuestions) : p.currentQuestion,
+              timeOnQuestion: shouldAnswer ? 0 : p.timeOnQuestion + 2,
+              timeRemainingSeconds: Math.max(0, p.timeRemainingSeconds - 2),
+              status: shouldSubmit ? 'submitted' : p.status,
+              estimatedScorePercent: Math.min(100, p.estimatedScorePercent + (shouldAnswer ? Math.round(Math.random() * 4) : 0)),
+            };
+          })
+        );
+      }, 2000);
 
-      return () => {
-        if (updateInterval) clearInterval(updateInterval);
-      };
+      return () => clearInterval(updateInterval);
     }
 
     // Initialize socket connection
