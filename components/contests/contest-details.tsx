@@ -143,7 +143,7 @@ export function ContestDetails({ contest }: ContestDetailsProps) {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground whitespace-pre-line">
-                    {contest.longDescription || contest.description}
+                    {contest.description}
                   </p>
                 </CardContent>
               </Card>

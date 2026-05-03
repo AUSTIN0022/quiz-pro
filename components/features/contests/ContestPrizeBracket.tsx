@@ -21,15 +21,34 @@ export function ContestPrizeBracket({ prizes, className }: PrizeBracketProps) {
     );
   }
 
-  const sortedPrizes = [...prizes].sort((a, b) => a.position - b.position);
-  const podiumPrizes = sortedPrizes.filter(p => p.position <= 3);
-  const otherPrizes = sortedPrizes.filter(p => p.position > 3);
+  const sortedPrizes = [...prizes].sort((a, b) => {
+    const rankA = typeof a.rank === 'number' ? a.rank : parseInt(String(a.rank));
+    const rankB = typeof b.rank === 'number' ? b.rank : parseInt(String(b.rank));
+    return rankA - rankB;
+  });
+  const podiumPrizes = sortedPrizes.filter(p => {
+    const rankNum = typeof p.rank === 'number' ? p.rank : parseInt(String(p.rank));
+    return rankNum <= 3;
+  });
+  const otherPrizes = sortedPrizes.filter(p => {
+    const rankNum = typeof p.rank === 'number' ? p.rank : parseInt(String(p.rank));
+    return rankNum > 3;
+  });
 
   // Reorder for podium display: 2, 1, 3
   const displayPodium = [
-    podiumPrizes.find(p => p.position === 2),
-    podiumPrizes.find(p => p.position === 1),
-    podiumPrizes.find(p => p.position === 3),
+    podiumPrizes.find(p => {
+      const rankNum = typeof p.rank === 'number' ? p.rank : parseInt(String(p.rank));
+      return rankNum === 2;
+    }),
+    podiumPrizes.find(p => {
+      const rankNum = typeof p.rank === 'number' ? p.rank : parseInt(String(p.rank));
+      return rankNum === 1;
+    }),
+    podiumPrizes.find(p => {
+      const rankNum = typeof p.rank === 'number' ? p.rank : parseInt(String(p.rank));
+      return rankNum === 3;
+    }),
   ].filter(Boolean);
 
   return (
@@ -39,13 +58,14 @@ export function ContestPrizeBracket({ prizes, className }: PrizeBracketProps) {
         {displayPodium.map((prize, index) => {
           if (!prize) return null;
           
-          const isFirst = prize.position === 1;
-          const isSecond = prize.position === 2;
-          const isThird = prize.position === 3;
+          const rankNum = typeof prize.rank === 'number' ? prize.rank : parseInt(String(prize.rank));
+          const isFirst = rankNum === 1;
+          const isSecond = rankNum === 2;
+          const isThird = rankNum === 3;
 
           return (
             <motion.div
-              key={prize.position}
+              key={rankNum}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
@@ -69,13 +89,13 @@ export function ContestPrizeBracket({ prizes, className }: PrizeBracketProps) {
                 </div>
                 
                 <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">
-                  {prize.position}{prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : 'rd'} Place
+                  {rankNum}{rankNum === 1 ? 'st' : rankNum === 2 ? 'nd' : 'rd'} Place
                 </span>
                 <span className={cn(
                   "font-bold truncate w-full px-2",
                   isFirst ? "text-xl sm:text-2xl text-primary" : "text-lg text-foreground"
                 )}>
-                  {prize.reward}
+                  {prize.amount ? `₹${prize.amount.toLocaleString()}` : prize.title}
                 </span>
                 {prize.description && (
                   <span className="text-[10px] sm:text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -102,12 +122,12 @@ export function ContestPrizeBracket({ prizes, className }: PrizeBracketProps) {
               </thead>
               <tbody className="divide-y">
                 {otherPrizes.map((prize) => (
-                  <tr key={prize.position} className="hover:bg-muted/20 transition-colors">
+                  <tr key={String(prize.rank)} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3 font-semibold text-muted-foreground">
-                      {prize.position}th
+                      {prize.rank}
                     </td>
                     <td className="px-4 py-3 font-medium text-foreground">
-                      {prize.reward}
+                      {prize.amount ? `₹${prize.amount.toLocaleString()}` : prize.title}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {prize.description || '—'}

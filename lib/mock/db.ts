@@ -885,9 +885,6 @@ export const MockDB = {
     },
   ] as SentMessage[],
 
-  // Contacts (all participants across all contests)
-  contacts: generateContacts(),
-
   // Proctoring logs (for violations)
   proctoringLogs: [],
 

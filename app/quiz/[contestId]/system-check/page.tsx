@@ -238,11 +238,8 @@ export default function SystemCheckPage() {
             <CardContent className="space-y-6">
               {/* Camera Preview using CameraCheckWidget */}
               <CameraCheckWidget
-                onCameraReady={(ready) => {
-                  if (ready) {
-                    updateCheckStatus("camera", "passed");
-                  }
-                }}
+                onProceed={() => updateCheckStatus("camera", "passed")}
+                onRetryCamera={() => {}}
               />
 
               {/* System Checks List */}

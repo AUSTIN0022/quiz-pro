@@ -27,10 +27,14 @@ export default function ProfilePage() {
     github: profile?.socialLinks?.github || '',
   });
 
-  const [notifications, setNotifications] = useState({
-    emailReminders: profile?.notificationPreferences?.emailReminders || true,
-    whatsappReminders: profile?.notificationPreferences?.whatsappReminders || true,
-    emailResults: profile?.notificationPreferences?.emailResults || true,
+  const [notifications, setNotifications] = useState<{
+    emailReminders: boolean;
+    whatsappReminders: boolean;
+    emailResults: boolean;
+  }>({
+    emailReminders: profile?.notificationPreferences?.emailReminders ?? true,
+    whatsappReminders: profile?.notificationPreferences?.whatsappReminders ?? true,
+    emailResults: profile?.notificationPreferences?.emailResults ?? true,
   });
 
   const handleInputChange = (field: string, value: string) => {
