@@ -50,6 +50,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { RankedOutliersSection } from '@/components/features/live-monitor/RankedOutliersSection';
+import { AnomalyFeedSection, type AnomalyEvent } from '@/components/features/live-monitor/AnomalyFeedSection';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -85,11 +87,12 @@ export default function LiveMonitorTabPage() {
     } = useAdminContestSocket(id, 'admin-123'); // Mock admin ID
 
     const [activeSubTab, setActiveSubTab] = useState<'grid' | 'leaderboard'>('grid');
-    const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'table' | 'outliers'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | string>('all');
     const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
     const [selectedParticipant, setSelectedParticipant] = useState<LiveParticipant | null>(null);
+    const [anomalyEvents, setAnomalyEvents] = useState<AnomalyEvent[]>([]);
 
     const stats = useMemo(() => getParticipantStats(), [getParticipantStats]);
 
@@ -196,6 +199,7 @@ export default function LiveMonitorTabPage() {
                                     size="icon"
                                     className="h-8 w-8 rounded-md"
                                     onClick={() => setViewMode('grid')}
+                                    title="Grid View"
                                 >
                                     <LayoutGrid className="h-4 w-4" />
                                 </Button>
@@ -204,14 +208,25 @@ export default function LiveMonitorTabPage() {
                                     size="icon"
                                     className="h-8 w-8 rounded-md"
                                     onClick={() => setViewMode('table')}
+                                    title="Table View"
                                 >
                                     <List className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant={viewMode === 'outliers' ? 'secondary' : 'ghost'}
+                                    size="sm"
+                                    className="h-8 px-2 rounded-md text-xs"
+                                    onClick={() => setViewMode('outliers')}
+                                    title="Ranked Outliers & Anomaly Feed"
+                                >
+                                    <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                                    Outliers
                                 </Button>
                             </div>
                         </div>
                     </div>
 
-                    {/* Grid/Table View */}
+                    {/* Grid/Table/Outliers View */}
                     {viewMode === 'grid' ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             {filteredParticipants.map(p => (
@@ -222,8 +237,19 @@ export default function LiveMonitorTabPage() {
                                 />
                             ))}
                         </div>
-                    ) : (
+                    ) : viewMode === 'table' ? (
                         <LiveTable participants={filteredParticipants} onDetails={(p) => setSelectedParticipant(p)} onForceSubmit={(id) => forceSubmitParticipant(id)} />
+                    ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <RankedOutliersSection 
+                                participants={participants}
+                                totalParticipants={stats.totalJoined}
+                            />
+                            <AnomalyFeedSection 
+                                participants={participants}
+                                events={anomalyEvents}
+                            />
+                        </div>
                     )}
                 </div>
             ) : (
