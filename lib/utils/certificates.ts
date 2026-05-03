@@ -33,8 +33,8 @@ export async function downloadQRCode(
   filename: string = 'qrcode.png'
 ): Promise<void> {
   try {
-    const dataUrl = await generateQRCode(text);
-    const canvas = await QRCode.toCanvas(text, {
+    const canvas = document.createElement('canvas') as HTMLCanvasElement;
+    await QRCode.toCanvas(canvas, text, {
       width: 200,
       margin: 2
     });
