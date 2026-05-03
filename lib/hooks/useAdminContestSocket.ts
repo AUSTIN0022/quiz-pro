@@ -56,13 +56,16 @@ export function useAdminContestSocket(
   useEffect(() => {
     if (USE_SEED_WS) {
       // SEED MODE: Generate simulated participants from MockDB
+      let updateInterval: ReturnType<typeof setInterval>;
+      
       import('@/lib/mock/relations').then(({ getLiveParticipantsForContest }) => {
         const initial = getLiveParticipantsForContest(contestId);
         setParticipants(initial);
         setConnected(true);
+        setError(null);
 
         // Simulate real-time updates every 2 seconds
-        const updateInterval = setInterval(() => {
+        updateInterval = setInterval(() => {
           setParticipants((prev) =>
             prev.map((p) => {
               if (p.status === 'submitted' || p.status === 'disconnected') return p;
@@ -82,10 +85,11 @@ export function useAdminContestSocket(
             })
           );
         }, 2000);
-
-        return () => clearInterval(updateInterval);
       });
-      return;
+
+      return () => {
+        if (updateInterval) clearInterval(updateInterval);
+      };
     }
 
     // Initialize socket connection

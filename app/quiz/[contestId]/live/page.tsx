@@ -19,9 +19,9 @@ import { ProctoringManager } from "@/components/features/proctoring/ProctoringMa
 import { ProctorWarningModal, type WarningType, FlaggedBanner } from "@/components/features/proctoring/ProctorWarningModal";
 import { FullscreenReturnOverlay } from "@/components/features/proctoring/FullscreenReturnOverlay";
 import { QuizTopBar } from "@/components/features/quiz/QuizTopBar";
+import { QuizProgressBar } from "@/components/features/quiz/QuizProgressBar";
 import { QuestionCard } from "@/components/features/quiz/QuestionCard";
 import { OptionButton } from "@/components/features/quiz/OptionButton";
-import { QuizRightPanel } from "@/components/features/quiz/QuizRightPanel";
 import { MobileQuizNavigatorSheet } from "@/components/features/quiz/MobileQuizNavigatorSheet";
 import { HintButton } from "@/components/features/quiz/HintButton";
 import { FlagButton } from "@/components/features/quiz/FlagButton";
@@ -213,18 +213,21 @@ export default function LiveQuizPage() {
         onSubmitClick={() => setShowSubmitModal(true)}
       />
 
+      {/* ─── Progress Bar ─────────────────────────── */}
+      <QuizProgressBar />
+
       {/* ─── Main Quiz Area ───────────────────────── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Invisible Video for Face Detection */}
         <video ref={videoRef} className="hidden" autoPlay playsInline muted />
 
-        {/* Left: Question + Options */}
+        {/* Full Width: Question + Options */}
         <main 
-          className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12"
+          className="flex-1 overflow-y-auto flex flex-col p-4 sm:p-8 lg:p-12"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          <div className="max-w-2xl mx-auto">
+          <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentIndex}
@@ -232,6 +235,7 @@ export default function LiveQuizPage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
+                className="flex flex-col"
               >
                 <QuestionCard
                   question={currentQuestion}
@@ -257,38 +261,36 @@ export default function LiveQuizPage() {
               </motion.div>
             </AnimatePresence>
 
+            {/* Desktop: Next Button Only */}
             <div className="hidden sm:flex gap-4 mt-12">
-              <Button
-                variant="outline"
-                onClick={handlePrevious}
-                disabled={currentIndex === 0}
-                className="flex-1 border-white/10 text-white/50 hover:bg-white/5 h-12 rounded-xl"
-              >
-                Previous
-              </Button>
               <Button
                 variant="outline"
                 onClick={handleNext}
                 disabled={currentIndex === questions.length - 1}
-                className="flex-1 border-white/10 text-white/50 hover:bg-white/5 h-12 rounded-xl"
+                className="flex-1 border-white/10 text-white hover:bg-orange-500/10 h-12 rounded-xl font-semibold"
               >
-                Next
+                {currentIndex === questions.length - 1 ? "Last Question" : "Next Question"}
               </Button>
             </div>
           </div>
         </main>
-
-        <QuizRightPanel onSubmitClick={() => setShowSubmitModal(true)} />
       </div>
 
-      <MobileQuizNavigatorSheet onSubmitClick={() => setShowSubmitModal(true)} />
-
+      {/* Mobile: Bottom Action Buttons */}
       <div className="sm:hidden grid grid-cols-2 gap-3 p-4 border-t border-white/5 bg-slate-900/80 backdrop-blur-md">
-        <Button variant="outline" onClick={handlePrevious} disabled={currentIndex === 0} className="border-white/10 h-11 rounded-xl">
-          Prev
+        <Button
+          variant="outline"
+          onClick={() => setShowSubmitModal(true)}
+          className="border-white/10 text-white/70 h-11 rounded-xl"
+        >
+          Skip
         </Button>
-        <Button variant="outline" onClick={handleNext} disabled={currentIndex === questions.length - 1} className="border-white/10 h-11 rounded-xl">
-          Next
+        <Button
+          onClick={handleNext}
+          disabled={currentIndex === questions.length - 1}
+          className="bg-orange-500 hover:bg-orange-600 text-white h-11 rounded-xl font-semibold"
+        >
+          {currentIndex === questions.length - 1 ? "Submit" : "Next"}
         </Button>
       </div>
     </div>
