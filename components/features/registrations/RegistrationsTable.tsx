@@ -263,7 +263,7 @@ export function RegistrationsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedRegistrations.map(renderRow)}
+          {sortedRegistrations.map((registration, index) => renderRow(registration, index))}
         </TableBody>
       </Table>
     </div>

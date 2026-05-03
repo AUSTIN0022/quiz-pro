@@ -186,7 +186,7 @@ export default function WaitingRoomPage() {
 
         <p className="text-white/60 text-sm mb-8">Contest begins in</p>
 
-        {/* ─── Countdown ──────────────────────────── */}
+        {/* ─── Countdown ─────────────────────��────── */}
         <CountdownDisplay time={timeToStart} />
 
         {/* ─── Participant Count ──────────────────── */}
@@ -224,8 +224,8 @@ export default function WaitingRoomPage() {
               <span className="text-sm font-semibold text-white">What to Expect</span>
             </div>
             <div className="space-y-3">
-              <InfoField label="Duration" value={`${contest?.duration || 90} minutes`} />
-              <InfoField label="Questions" value={`${contest?.totalQuestions || "—"} questions`} />
+              <InfoField label="Questions" value={`${contest?.numberOfQuestions || "—"} questions`} />
+              <InfoField label="Total Marks" value={`${contest?.totalMarks || "—"}`} />
             </div>
 
             {/* Rules */}

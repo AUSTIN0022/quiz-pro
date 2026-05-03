@@ -1,11 +1,12 @@
 "use client";
 
 import { Flag, CheckCircle, Circle } from "lucide-react";
-import type { Question, QuizAnswer } from "@/lib/types";
+import type { QuizQuestion } from "@/lib/stores/quiz-store";
 
 interface QuestionNavigationProps {
-  questions: Question[];
-  answers: QuizAnswer[];
+  questions: QuizQuestion[];
+  answers: Record<number, number>;
+  flagged: number[];
   currentIndex: number;
   onNavigate: (index: number) => void;
 }
@@ -13,11 +14,12 @@ interface QuestionNavigationProps {
 export function QuestionNavigation({
   questions,
   answers,
+  flagged,
   currentIndex,
   onNavigate,
 }: QuestionNavigationProps) {
-  const answeredCount = answers.filter((a) => a.selectedOption !== null).length;
-  const markedCount = answers.filter((a) => a.markedForReview).length;
+  const answeredCount = Object.keys(answers).length;
+  const markedCount = flagged.length;
   const notVisitedCount = answers.filter((a) => !a.visited && a.selectedOption === null).length;
 
   return (

@@ -7,7 +7,7 @@ export function useLeaderboard(contestId: string, refreshInterval: number = 5000
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const refreshTimerRef = useRef<NodeJS.Timer | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchLeaderboard = useCallback(async () => {
     try {

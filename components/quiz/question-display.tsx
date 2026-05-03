@@ -20,10 +20,10 @@ export function QuestionDisplay({
   selectedOption,
   isMarkedForReview,
 }: QuestionDisplayProps) {
-  const { answerQuestion } = useQuizStore();
+  const { setAnswer } = useQuizStore();
 
   const handleOptionSelect = (optionIndex: number) => {
-    answerQuestion(questionNumber - 1, optionIndex);
+    setAnswer(questionNumber - 1, optionIndex);
   };
 
   return (
@@ -106,7 +106,7 @@ export function QuestionDisplay({
                     ${isSelected ? "text-foreground font-medium" : "text-foreground"}
                   `}
                 >
-                  {option}
+                  {typeof option === 'string' ? option : option.text}
                 </span>
               </motion.button>
             );
@@ -118,7 +118,7 @@ export function QuestionDisplay({
           <motion.button
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            onClick={() => answerQuestion(questionNumber - 1, null)}
+            onClick={() => setAnswer(questionNumber - 1, -1)}
             className="mt-4 text-sm text-muted-foreground hover:text-destructive transition-colors"
           >
             Clear selection

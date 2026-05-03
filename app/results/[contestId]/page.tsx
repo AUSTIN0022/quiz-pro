@@ -121,9 +121,10 @@ export default function ResultsPage() {
   }
 
   const scorePercentage = (result.score / result.totalMarks) * 100;
+  const totalAnswered = result.correctAnswers + result.wrongAnswers;
   const accuracyPercentage =
-    result.totalQuestions > 0
-      ? (result.correctAnswers / result.totalQuestions) * 100
+    totalAnswered > 0
+      ? (result.correctAnswers / totalAnswered) * 100
       : 0;
 
   const getRankBadge = (rank: number) => {
@@ -293,26 +294,22 @@ export default function ResultsPage() {
                     <CardTitle>Detailed Breakdown</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Section-wise Performance */}
-                    {result.sectionWise && result.sectionWise.length > 0 && (
-                      <div className="space-y-4">
-                        <h3 className="font-medium text-foreground">Section-wise Performance</h3>
-                        {result.sectionWise.map((section, index) => (
-                          <div key={index} className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span className="text-foreground">{section.sectionName}</span>
-                              <span className="text-muted-foreground">
-                                {section.correct}/{section.total} correct
-                              </span>
-                            </div>
-                            <Progress
-                              value={(section.correct / section.total) * 100}
-                              className="h-2"
-                            />
-                          </div>
-                        ))}
+                    {/* Performance Summary */}
+                    <div className="space-y-4">
+                      <h3 className="font-medium text-foreground">Performance Summary</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-foreground">Overall Accuracy</span>
+                          <span className="text-muted-foreground">
+                            {result.correctAnswers}/{totalAnswered} correct
+                          </span>
+                        </div>
+                        <Progress
+                          value={accuracyPercentage}
+                          className="h-2"
+                        />
                       </div>
-                    )}
+                    </div>
 
                     {/* Answer Distribution */}
                     <div className="space-y-4">
